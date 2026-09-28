@@ -45,12 +45,12 @@ flowchart LR
 
 ## Quick start
 
-Requires Docker with Compose v2, `make`, and [uv](https://docs.astral.sh/uv/) for the smoke test.
+Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https://docs.astral.sh/uv/) for the smoke test.
 
 ```bash
-make gateway-up     # LiteLLM, PostgreSQL and Ollama; creates .env from .env.example on first run
-make smoke          # calls the gateway with the OpenAI SDK and prints the local model's answer
-make gateway-down   # add ARGS=--volumes to also delete the database and the downloaded model
+just gateway-up     # LiteLLM, PostgreSQL and Ollama; creates .env from .env.example on first run
+just smoke          # calls the gateway with the OpenAI SDK and prints the local model's answer
+just gateway-down   # add --volumes to also delete the database and the downloaded model
 ```
 
 First start on a clean machine: about 45 seconds, including the download of `qwen2.5:0.5b` (about 400 MB).
@@ -63,7 +63,7 @@ client = OpenAI(base_url="http://localhost:4000", api_key="sk-local-dev-master-k
 client.chat.completions.create(model="local-chat", messages=[{"role": "user", "content": "Hello"}])
 ```
 
-Presidio and Langfuse join the stack in milestones 1.2 and 1.3. To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `make hooks`, and run `make lint`.
+Presidio and Langfuse join the stack in milestones 1.2 and 1.3. To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `just hooks`, and run `just lint`. Run `just` alone to list every recipe.
 
 ## Roadmap
 

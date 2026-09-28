@@ -16,12 +16,14 @@ Image versions are pinned in `compose.yaml`. When bumping them, keep the healthc
 
 ## Commands
 
-- `make gateway-up`: start the stack and wait until every service is healthy. Creates `.env` from `.env.example` if missing.
-- `make smoke` (alias `make test`): call the gateway with the OpenAI SDK through `uv run`, and fail on an empty answer.
-- `make gateway-down`: stop the stack; `ARGS=--volumes` also deletes the database and the models.
-- `make gateway-logs`: follow the logs.
-- `make hooks`: install the pre-commit and commit-msg git hooks.
-- `make lint`: run every pre-commit check (whitespace, YAML, yamllint, markdownlint, gitleaks) on all files.
+Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); there is no Makefile. Run `just` to list recipes.
+
+- `just gateway-up`: start the stack and wait until every service is healthy. Creates `.env` from `.env.example` if missing.
+- `just smoke` (alias `just test`): call the gateway with the OpenAI SDK through `uv run`, and fail on an empty answer.
+- `just gateway-down`: stop the stack; `just gateway-down --volumes` also deletes the database and the models.
+- `just gateway-logs`: follow the logs.
+- `just hooks`: install the pre-commit and commit-msg git hooks.
+- `just lint`: run every pre-commit check (whitespace, YAML, yamllint, markdownlint, gitleaks) on all files.
 
 CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, the full stack with the smoke test on a clean runner, and checks that the PR title is a Conventional Commit, since PRs are squash-merged.
 

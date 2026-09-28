@@ -1,5 +1,5 @@
 # Local gateway stack: LiteLLM Proxy in front of Ollama, with PostgreSQL for keys and spend.
-# Start with `make gateway-up`, stop with `make gateway-down`. Settings come from `.env` (see `.env.example`).
+# Start with `just gateway-up`, stop with `just gateway-down`. Settings come from `.env` (see `.env.example`).
 
 name: llmops-gateway
 

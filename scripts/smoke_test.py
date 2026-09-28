@@ -1,6 +1,6 @@
 """Smoke test: call the gateway with the OpenAI SDK and check the local model answers.
 
-Run with `make smoke` once `make gateway-up` has finished.
+Run with `just smoke` once `just gateway-up` has finished.
 """
 
 import os
