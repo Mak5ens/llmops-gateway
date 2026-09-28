@@ -1,0 +1,16 @@
+# LiteLLM Proxy configuration. Values written `os.environ/NAME` are read from the container environment.
+# Reference: https://docs.litellm.ai/docs/proxy/configs
+
+model_list:
+  # Callers ask for "local-chat"; the gateway decides which model actually serves it.
+  - model_name: local-chat
+    litellm_params:
+      model: ollama_chat/qwen2.5:0.5b
+      api_base: http://ollama:11434
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+
+litellm_settings:
+  drop_params: true
