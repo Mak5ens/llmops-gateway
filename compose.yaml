@@ -20,23 +20,34 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Serves chat-small and embed. Each Ollama instance stands for one model server, like vLLM pods on the cluster.
   ollama:
     image: ollama/ollama:0.34.4
     volumes:
       - ollama-models:/root/.ollama
-    healthcheck:
+    healthcheck: &ollama-healthcheck
       test: ["CMD", "ollama", "list"]
       interval: 5s
       timeout: 5s
       retries: 10
     restart: unless-stopped
 
-  # One-shot job: downloads the model on first start, then exits. Later starts only check the manifest.
+  # Serves chat-large. Stopping it simulates an outage of the main model: `just fallback-test`.
+  ollama-large:
+    image: ollama/ollama:0.34.4
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck: *ollama-healthcheck
+    restart: unless-stopped
+
+  # One-shot job: downloads every model on first start, then exits. Later starts only check the manifests.
+  # Both Ollama instances share the model volume, so pulling through one is enough.
   ollama-pull:
     image: ollama/ollama:0.34.4
     environment:
       OLLAMA_HOST: http://ollama:11434
-    command: ["pull", "${OLLAMA_MODEL:?set in .env}"]
+      OLLAMA_MODELS_TO_PULL: ${OLLAMA_MODELS:?set in .env}
+    entrypoint: ["sh", "-c", "for m in $$OLLAMA_MODELS_TO_PULL; do ollama pull $$m || exit 1; done"]
     depends_on:
       ollama:
         condition: service_healthy
@@ -49,6 +60,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set in .env}
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?set in .env}
+      # INFO shows retries, fallbacks and cooldowns in the logs.
+      LITELLM_LOG: INFO
     volumes:
       - ./config/litellm.yaml:/app/config.yaml:ro
     ports:

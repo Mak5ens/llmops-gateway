@@ -1,12 +1,41 @@
 # LiteLLM Proxy configuration. Values written `os.environ/NAME` are read from the container environment.
 # Reference: https://docs.litellm.ai/docs/proxy/configs
+#
+# Callers only know usage aliases (chat-small, chat-large, embed). Which model serves an alias is decided here,
+# so swapping a model is a change to this file and to OLLAMA_MODELS in .env, never to client code.
 
 model_list:
-  # Callers ask for "local-chat"; the gateway decides which model actually serves it.
-  - model_name: local-chat
+  # Fast and cheap: short answers, classification, extraction.
+  - model_name: chat-small
     litellm_params:
       model: ollama_chat/qwen2.5:0.5b
       api_base: http://ollama:11434
+      timeout: 30
+
+  # Better answers, slower. Falls back to chat-small when it fails or times out (see router_settings).
+  # The timeout is also the worst-case time to detect a dead server: a pooled connection to a server that
+  # disappeared hangs until it expires. 20 s leaves room for about 300 tokens on CPU.
+  - model_name: chat-large
+    litellm_params:
+      model: ollama_chat/qwen2.5:1.5b
+      api_base: http://ollama-large:11434
+      timeout: 20
+      # The fallback is the retry: retrying a server that did not answer doubles the wait before chat-small.
+      num_retries: 0
+
+  # Multilingual embeddings (French included), 768 dimensions.
+  - model_name: embed
+    litellm_params:
+      model: ollama/granite-embedding:278m
+      api_base: http://ollama:11434
+      timeout: 30
+
+router_settings:
+  # One retry on the same alias by default, then the fallback chain.
+  num_retries: 1
+  retry_after: 1
+  fallbacks:
+    - chat-large: [chat-small]
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
@@ -14,3 +43,5 @@ general_settings:
 
 litellm_settings:
   drop_params: true
+  # Upper bound for any call, whatever the per-model timeout.
+  request_timeout: 60

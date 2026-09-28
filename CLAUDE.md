@@ -10,22 +10,32 @@ Planning lives in Linear (team key `LAB`, project "Plateforme IA · Gateway d'en
 
 ## Current state
 
-Milestone 1.1 is in progress. `compose.yaml` runs LiteLLM Proxy (`litellm-database` image, which applies its Prisma migrations to PostgreSQL at startup), PostgreSQL and Ollama. A one-shot `ollama-pull` service downloads `OLLAMA_MODEL` before LiteLLM starts. Models exposed by the gateway are declared in `config/litellm.yaml`; callers use aliases such as `local-chat`, never the underlying model name. Presidio (LAB-113) and Langfuse (LAB-117) are not in the stack yet.
+Milestone 1.1 is in progress. `compose.yaml` runs LiteLLM Proxy (`litellm-database` image, which applies its Prisma migrations to PostgreSQL at startup), PostgreSQL and two Ollama servers sharing one model volume: `ollama` serves `chat-small` and `embed`, `ollama-large` serves `chat-large`, so stopping it simulates an outage of one model server. A one-shot `ollama-pull` service downloads every model in `OLLAMA_MODELS` before LiteLLM starts. Presidio (LAB-113) and Langfuse (LAB-117) are not in the stack yet.
 
-Image versions are pinned in `compose.yaml`. When bumping them, keep the healthchecks working: the images ship without curl or wget, hence `python3` in the LiteLLM healthcheck and `ollama list` for Ollama. PostgreSQL 18 stores data under `/var/lib/postgresql/<major>/`, so the volume is mounted on the parent directory.
+Routing lives in `config/litellm.yaml`: callers only use usage aliases (`chat-small`, `chat-large`, `embed`), and `chat-large` falls back to `chat-small`. Things learned the hard way, keep them in mind when touching it:
+
+- LiteLLM reads the file only at startup: run `just gateway-reload` after editing it, or the old model list stays loaded.
+- A pooled connection to a server that died hangs until the model `timeout`, so that timeout is the worst-case failover time. `chat-large` has `num_retries: 0` because each retry waits the full timeout again. `retry_policy.TimeoutErrorRetries` does not help: LiteLLM raises `APIConnectionError` there, which no retry policy field matches.
+- `allowed_fails` and `cooldown_time` have no effect with one deployment per alias (see `router_utils/cooldown_handlers.py` in the image).
+- `LITELLM_LOG=INFO` is what makes retries and fallbacks visible in the logs.
+
+Image versions are pinned in `compose.yaml`. When bumping them, keep the healthchecks working: the images ship without curl or wget, hence `python3` in the LiteLLM healthcheck and `ollama list` for Ollama. PostgreSQL 18 stores data under `/var/lib/postgresql/<major>/`, so the volume is mounted on the parent directory. `just` parses `.env` itself and needs quotes around values with spaces, such as `OLLAMA_MODELS`.
 
 ## Commands
 
 Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); there is no Makefile. Run `just` to list recipes.
 
 - `just gateway-up`: start the stack and wait until every service is healthy. Creates `.env` from `.env.example` if missing.
-- `just smoke` (alias `just test`): call the gateway with the OpenAI SDK through `uv run`, and fail on an empty answer.
+- `just smoke`: call every alias with the OpenAI SDK through `uv run`, and fail on an empty answer.
+- `just fallback-test`: warm a connection to `chat-large`, stop `ollama-large`, and check `chat-small` answers within 30 s; restarts `ollama-large` even on failure.
+- `just test`: both of the above.
+- `just gateway-reload`: restart LiteLLM after a change to `config/litellm.yaml`.
 - `just gateway-down`: stop the stack; `just gateway-down --volumes` also deletes the database and the models.
 - `just gateway-logs`: follow the logs.
 - `just hooks`: install the pre-commit and commit-msg git hooks.
 - `just lint`: run every pre-commit check (whitespace, YAML, yamllint, markdownlint, gitleaks) on all files.
 
-CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, the full stack with the smoke test on a clean runner, and checks that the PR title is a Conventional Commit, since PRs are squash-merged.
+CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, the full stack with the smoke and fallback tests on a clean runner, and checks that the PR title is a Conventional Commit, since PRs are squash-merged.
 
 ## Conventions
 

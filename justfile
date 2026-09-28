@@ -22,16 +22,30 @@ gateway-up: _env
 gateway-down *args:
     docker compose down {{ args }}
 
+# Restart LiteLLM to apply changes to config/litellm.yaml
+gateway-reload:
+    docker compose restart litellm
+    docker compose up --detach --wait litellm
+
 # Follow the logs of every service
 gateway-logs:
     docker compose logs --follow
 
-# Call the gateway with the OpenAI SDK and check the local model answers
+# Call every alias (chat-small, chat-large, embed) with the OpenAI SDK
 smoke: _env
     uv run --no-project --with openai python scripts/smoke_test.py
 
-# Run the tests (smoke test for now)
-test: smoke
+# Stop ollama-large, check chat-large falls back to chat-small within 30 s, then restart it
+fallback-test: _env
+    #!/usr/bin/env bash
+    set -euo pipefail
+    trap 'docker compose start ollama-large >/dev/null 2>&1' EXIT
+    uv run --no-project --with openai python scripts/fallback_test.py
+    echo "Gateway logs:"
+    docker compose logs --since 45s --no-log-prefix litellm | grep -E "Exception|fallback" | cut -c1-160
+
+# Run every test
+test: smoke fallback-test
 
 [private]
 _env:

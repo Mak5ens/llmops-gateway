@@ -5,7 +5,7 @@
 
 **One gateway for every LLM call in the company: per-team keys and budgets, French PII anonymized before inference, every call traced and priced.**
 
-> Status: under construction. Milestone 1.1 (local gateway) is in progress: LiteLLM, PostgreSQL and Ollama run with Docker Compose. See the [roadmap](#roadmap).
+> Status: under construction. Milestone 1.1 (local gateway) is in progress: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback. See the [roadmap](#roadmap).
 
 ## Why
 
@@ -45,29 +45,61 @@ flowchart LR
 
 ## Quick start
 
-Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https://docs.astral.sh/uv/) for the smoke test.
+Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https://docs.astral.sh/uv/) for the tests.
 
 ```bash
-just gateway-up     # LiteLLM, PostgreSQL and Ollama; creates .env from .env.example on first run
-just smoke          # calls the gateway with the OpenAI SDK and prints the local model's answer
-just gateway-down   # add --volumes to also delete the database and the downloaded model
+just gateway-up       # LiteLLM, PostgreSQL and two Ollama servers; creates .env from .env.example on first run
+just smoke            # calls every alias with the OpenAI SDK
+just fallback-test    # stops the chat-large server and checks the gateway falls back to chat-small
+just gateway-down     # add --volumes to also delete the database and the downloaded models
 ```
 
-First start on a clean machine: about 45 seconds, including the download of `qwen2.5:0.5b` (about 400 MB).
+First start on a clean machine: about 70 seconds, including the download of three models (about 2 GB).
 The gateway listens on `http://localhost:4000` and speaks the OpenAI API; authenticate with `LITELLM_MASTER_KEY` from `.env`:
 
 ```python
 from openai import OpenAI
 
 client = OpenAI(base_url="http://localhost:4000", api_key="sk-local-dev-master-key")
-client.chat.completions.create(model="local-chat", messages=[{"role": "user", "content": "Hello"}])
+client.chat.completions.create(model="chat-small", messages=[{"role": "user", "content": "Hello"}])
+client.embeddings.create(model="embed", input="Le locataire a payé son loyer en retard.")
 ```
 
 Presidio and Langfuse join the stack in milestones 1.2 and 1.3. To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `just hooks`, and run `just lint`. Run `just` alone to list every recipe.
 
+## Models and routing
+
+Teams call **usage aliases**, never model names. The platform decides which model serves each alias in [`config/litellm.yaml`](config/litellm.yaml), so a model can be swapped without touching any client.
+
+| Alias | Use | Model today | Server | Timeout |
+| -- | -- | -- | -- | -- |
+| `chat-small` | Short answers, classification, extraction | `qwen2.5:0.5b` | `ollama` | 30 s |
+| `chat-large` | Better answers, slower | `qwen2.5:1.5b` | `ollama-large` | 20 s, then fallback to `chat-small` |
+| `embed` | Embeddings, multilingual (French included), 768 dimensions | `granite-embedding:278m` | `ollama` | 30 s |
+
+**Fallback.** If `chat-large` fails or times out, the gateway answers with `chat-small`. The response header `x-litellm-model-group` says which alias actually served the call, and the logs show `Falling back to model_group = chat-small`.
+Measured with `just fallback-test` on a laptop CPU:
+
+| Situation | Time to answer through `chat-small` |
+| -- | -- |
+| Server dies while the gateway holds an open connection to it (worst case) | 21 s: the full `chat-large` timeout, then the fallback |
+| Following calls during the outage | about 3 s: the connection fails at once |
+| Server back | `chat-large` serves again on the next call |
+
+`chat-large` has no retry (`num_retries: 0`): the fallback is its retry. With one retry, the worst case measured 44 s, since each attempt waits for the full timeout. The other aliases keep one retry.
+
+### Swap or add a model
+
+1. Add the model to `OLLAMA_MODELS` in `.env` (and in `.env.example` for everyone), then run `just gateway-up` to download it.
+2. In `config/litellm.yaml`, point an alias to it, or add a new entry to `model_list` with a usage alias as `model_name`, the model as `ollama_chat/<name>` (or `ollama/<name>` for embeddings), the server as `api_base`, and a `timeout`.
+3. Run `just gateway-reload`: Compose does not see changes to a mounted file, so LiteLLM must restart to read it.
+4. Run `just smoke`, and add the new alias to `scripts/smoke_test.py` if you created one.
+
+Clients keep calling the same alias throughout.
+
 ## Roadmap
 
-- [ ] **1.1 Local gateway**: LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
+- [ ] **1.1 Local gateway** (compose stack and routing done; keys and budgets next): LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
 - [ ] **1.2 Presidio anonymization**: pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
 - [ ] **1.3 Tracing and cost with Langfuse**: self-hosted Langfuse, cost per team, automated test proving traces hold no personal data.
 - [ ] **1.4 ADR, README and article 1**: why LiteLLM rather than a home-made or cloud gateway; demo GIF.
