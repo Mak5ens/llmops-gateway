@@ -5,7 +5,7 @@
 
 **One gateway for every LLM call in the company: per-team keys and budgets, French PII anonymized before inference, every call traced and priced.**
 
-> Status: under construction. Milestone 1.1 (local gateway) is in progress. See the [roadmap](#roadmap).
+> Status: under construction. Milestone 1.1 (local gateway) is in progress: LiteLLM, PostgreSQL and Ollama run with Docker Compose. See the [roadmap](#roadmap).
 
 ## Why
 
@@ -45,20 +45,25 @@ flowchart LR
 
 ## Quick start
 
-Not runnable yet: the Docker Compose stack is being built in milestone 1.1. The target is a single command:
+Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https://docs.astral.sh/uv/) for the smoke test.
 
 ```bash
-make up     # docker compose up: LiteLLM, PostgreSQL, Ollama, Presidio, Langfuse
-make test   # gateway, anonymization and "no PII in traces" tests
-make down
+just gateway-up     # LiteLLM, PostgreSQL and Ollama; creates .env from .env.example on first run
+just smoke          # calls the gateway with the OpenAI SDK and prints the local model's answer
+just gateway-down   # add --volumes to also delete the database and the downloaded model
 ```
 
-To contribute today, install the git hooks (requires [pre-commit](https://pre-commit.com/)):
+First start on a clean machine: about 45 seconds, including the download of `qwen2.5:0.5b` (about 400 MB).
+The gateway listens on `http://localhost:4000` and speaks the OpenAI API; authenticate with `LITELLM_MASTER_KEY` from `.env`:
 
-```bash
-make hooks
-make lint
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://localhost:4000", api_key="sk-local-dev-master-key")
+client.chat.completions.create(model="local-chat", messages=[{"role": "user", "content": "Hello"}])
 ```
+
+Presidio and Langfuse join the stack in milestones 1.2 and 1.3. To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `just hooks`, and run `just lint`. Run `just` alone to list every recipe.
 
 ## Roadmap
 

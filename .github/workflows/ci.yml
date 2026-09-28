@@ -38,6 +38,21 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  gateway-smoke:
+    # Starts the whole stack on a clean runner and calls it with the OpenAI SDK, like `just gateway-up smoke`.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: extractions/setup-just@v4
+      - run: just gateway-up
+      - run: just smoke
+      - if: failure()
+        run: docker compose logs
+      - if: always()
+        run: just gateway-down --volumes
+
   pr-title:
     # PRs are squash-merged, so the PR title becomes the Conventional Commit on main.
     if: github.event_name == 'pull_request'

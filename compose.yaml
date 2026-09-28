@@ -1,0 +1,71 @@
+# Local gateway stack: LiteLLM Proxy in front of Ollama, with PostgreSQL for keys and spend.
+# Start with `just gateway-up`, stop with `just gateway-down`. Settings come from `.env` (see `.env.example`).
+
+name: llmops-gateway
+
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set in .env}
+    volumes:
+      # PostgreSQL 18 images keep their data under /var/lib/postgresql/<major>/, so mount the parent.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:0.34.4
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # One-shot job: downloads the model on first start, then exits. Later starts only check the manifest.
+  ollama-pull:
+    image: ollama/ollama:0.34.4
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    command: ["pull", "${OLLAMA_MODEL:?set in .env}"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  litellm:
+    image: ghcr.io/berriai/litellm-database:main-v1.83.14-stable
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set in .env}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?set in .env}
+    volumes:
+      - ./config/litellm.yaml:/app/config.yaml:ro
+    ports:
+      - 127.0.0.1:${LITELLM_PORT:-4000}:4000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama-pull:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  ollama-models:
