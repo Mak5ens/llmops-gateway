@@ -13,7 +13,7 @@ hooks:
 lint:
     pre-commit run --all-files
 
-# Start LiteLLM, PostgreSQL and Ollama, wait until they are healthy, then create the client teams and keys
+# Start LiteLLM, PostgreSQL, Ollama and Presidio, wait until they are healthy, then create the client teams and keys
 gateway-up: _env
     docker compose up --detach --wait
     docker compose run --rm --no-deps tenants-bootstrap

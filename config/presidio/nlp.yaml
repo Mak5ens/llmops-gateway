@@ -1,0 +1,42 @@
+# NLP engine of Presidio Analyzer: one spaCy model per language, loaded at startup.
+# Callers pick the language on each request ("language": "fr"). Both models are baked into
+# docker/presidio-analyzer/Dockerfile; a new language needs its model there first.
+nlp_engine_name: spacy
+models:
+  - lang_code: fr
+    model_name: fr_core_news_lg
+  - lang_code: en
+    model_name: en_core_web_lg
+
+ner_model_configuration:
+  # The French model labels PER, LOC, ORG and MISC; the English one uses the OntoNotes labels.
+  model_to_presidio_entity_mapping:
+    PER: PERSON
+    PERSON: PERSON
+    LOC: LOCATION
+    GPE: LOCATION
+    FAC: LOCATION
+    LOCATION: LOCATION
+    NORP: NRP
+    ORG: ORGANIZATION
+    ORGANIZATION: ORGANIZATION
+    DATE: DATE_TIME
+    TIME: DATE_TIME
+  low_confidence_score_multiplier: 0.4
+  low_score_entity_names:
+    - ORG
+    - ORGANIZATION
+  labels_to_ignore:
+    # Organizations give many false positives, and MISC covers anything from events to nationalities.
+    - ORGANIZATION
+    - MISC
+    - CARDINAL
+    - EVENT
+    - LANGUAGE
+    - LAW
+    - MONEY
+    - ORDINAL
+    - PERCENT
+    - PRODUCT
+    - QUANTITY
+    - WORK_OF_ART

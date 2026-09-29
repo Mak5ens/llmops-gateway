@@ -1,4 +1,5 @@
-# Local gateway stack: LiteLLM Proxy in front of Ollama, with PostgreSQL for keys and spend.
+# Local gateway stack: LiteLLM Proxy in front of Ollama, with PostgreSQL for keys and spend
+# and Presidio to detect and anonymize personal data.
 # Start with `just gateway-up`, stop with `just gateway-down`. Settings come from `.env` (see `.env.example`).
 
 name: llmops-gateway
@@ -77,6 +78,39 @@ services:
       timeout: 5s
       retries: 12
       start_period: 30s
+    restart: unless-stopped
+
+  # Detects personal data (names, places, emails, phone numbers...) in a text and returns their positions.
+  # Built from the official image plus the French spaCy model: docker/presidio-analyzer/Dockerfile.
+  presidio-analyzer:
+    build: docker/presidio-analyzer
+    image: llmops-gateway/presidio-analyzer:2.2.362-fr
+    environment:
+      ANALYZER_CONF_FILE: /config/analyzer.yaml
+      NLP_CONF_FILE: /config/nlp.yaml
+      RECOGNIZER_REGISTRY_CONF_FILE: /config/recognizers.yaml
+    volumes:
+      - ./config/presidio:/config:ro
+    # Measured at 1.6 GiB with the French and English models loaded (1.0 GiB with French only).
+    mem_limit: 2g
+    ports:
+      - 127.0.0.1:${PRESIDIO_ANALYZER_PORT:-5002}:3000
+    healthcheck: &presidio-healthcheck
+      # The image's own check runs every 30 s, which slows down `docker compose up --wait`.
+      test: ["CMD", "curl", "-fs", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      # Loading both spaCy models takes a while.
+      start_period: 30s
+    restart: unless-stopped
+
+  # Replaces, masks or encrypts the spans found by the Analyzer. Stateless, no model.
+  presidio-anonymizer:
+    image: mcr.microsoft.com/presidio-anonymizer:2.2.362
+    ports:
+      - 127.0.0.1:${PRESIDIO_ANONYMIZER_PORT:-5001}:3000
+    healthcheck: *presidio-healthcheck
     restart: unless-stopped
 
   # One-shot job: creates or updates the client teams and their keys from config/tenants.yaml, then exits.

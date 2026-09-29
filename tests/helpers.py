@@ -19,6 +19,8 @@ load_dotenv(ROOT / ".env")
 
 GATEWAY_URL = f"http://localhost:{os.environ.get('LITELLM_PORT', '4000')}"
 MASTER_KEY = os.environ["LITELLM_MASTER_KEY"]
+PRESIDIO_ANALYZER_URL = f"http://localhost:{os.environ.get('PRESIDIO_ANALYZER_PORT', '5002')}"
+PRESIDIO_ANONYMIZER_URL = f"http://localhost:{os.environ.get('PRESIDIO_ANONYMIZER_PORT', '5001')}"
 TEAM_KEYS = {
     "f1": os.environ["TEAM_KEY_F1"],
     "mj": os.environ["TEAM_KEY_MJ"],
