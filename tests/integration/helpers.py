@@ -11,7 +11,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from openai import OpenAI
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parents[2]
 
 if not (ROOT / ".env").exists():
     shutil.copy(ROOT / ".env.example", ROOT / ".env")

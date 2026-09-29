@@ -33,7 +33,7 @@ services:
       retries: 10
     restart: unless-stopped
 
-  # Serves chat-large. Stopping it simulates an outage of the main model: `tests/test_fallback.py`.
+  # Serves chat-large. Stopping it simulates an outage of the main model: `tests/integration/test_fallback.py`.
   ollama-large:
     image: ollama/ollama:0.34.4
     volumes:

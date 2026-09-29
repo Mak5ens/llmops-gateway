@@ -1,12 +1,38 @@
 # Recognizers of Presidio Analyzer. The NER recognizer (PERSON, LOCATION) comes from the spaCy models of nlp.yaml.
 # Recognizers without supported_languages are created for every language below.
-# French identifiers (NIR, SIRET, French phone numbers...) are added in LAB-114.
+# Fr* and UrlOutsideEmailRecognizer are ours, in docker/presidio-analyzer/pii_recognizers/: a change to their
+# code needs `docker compose build presidio-analyzer`, a change to this file only a restart.
 supported_languages:
   - fr
   - en
 global_regex_flags: 26
 
 recognizers:
+  # French identifiers, kept only when their check digits are right, and French addresses.
+  - name: FrNirRecognizer
+    type: predefined
+  - name: FrFiscalNumberRecognizer
+    type: predefined
+  - name: FrAddressRecognizer
+    type: predefined
+
+  # IBANs of every country, French included; the check digits are validated (mod 97).
+  - name: IbanRecognizer
+    type: predefined
+    supported_languages:
+      - language: fr
+        context: [iban, rib, compte, bancaire, virement, prélèvement, banque]
+      - language: en
+
+  # Phone numbers through the phonenumbers library: French numbers in every language, plus the stock
+  # recognizer's regions (US, UK, DE...) in English.
+  - name: FrPhoneRecognizer
+    type: predefined
+  - name: PhoneRecognizer
+    type: predefined
+    supported_languages:
+      - en
+
   - name: CreditCardRecognizer
     type: predefined
   - name: CryptoRecognizer
@@ -15,14 +41,12 @@ recognizers:
     type: predefined
   - name: EmailRecognizer
     type: predefined
-  - name: IbanRecognizer
-    type: predefined
   - name: IpRecognizer
     type: predefined
-  - name: PhoneRecognizer
+  # Replaces UrlRecognizer, which also flags the domain of every e-mail address.
+  - name: UrlOutsideEmailRecognizer
     type: predefined
-  - name: UrlRecognizer
-    type: predefined
+
   # Named entities (PERSON, LOCATION...) from the spaCy model of each language.
   - name: SpacyRecognizer
     type: predefined

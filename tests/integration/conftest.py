@@ -19,7 +19,7 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 @pytest.fixture(scope="session", autouse=True)
 def gateway() -> None:
     """Start the stack if needed (a no-op when it already runs) and create the client teams."""
-    compose("up", "--detach", "--wait")
+    compose("up", "--detach", "--wait", "--build")
     run_bootstrap()
 
 

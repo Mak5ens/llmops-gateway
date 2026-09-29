@@ -31,6 +31,10 @@ Presidio notes:
 
 - `presidio-analyzer` is built from `docker/presidio-analyzer/Dockerfile`: the official image plus `fr_core_news_lg`, installed as root with a pinned SHA-256 (the image runs as user 1001). Keep the base tag, the image tag in `compose.yaml` and the anonymizer tag on the same Presidio version.
 - Its configuration is mounted from `config/presidio/` through `ANALYZER_CONF_FILE`, `NLP_CONF_FILE` and `RECOGNIZER_REGISTRY_CONF_FILE`. A language must be listed in all three files, and its spaCy model installed in the Dockerfile. Recognizers without `supported_languages` are created for every language of the registry.
+- Custom recognizers live in `docker/presidio-analyzer/pii_recognizers/` and are copied into the image. Presidio's registry finds a `type: predefined` recognizer by class name among the loaded subclasses of `EntityRecognizer`, so `server.py` imports the package before calling the stock `create_app()`, and the Dockerfile's `CMD` runs `server:create_app()`. A new recognizer needs its class exported in `__init__.py` and an entry in `config/presidio/recognizers.yaml`. `just gateway-up` and the test fixture pass `--build`, so code changes reach the image (the cached build takes about a second).
+- The YAML loader silently drops constructor arguments it does not know, such as `PhoneRecognizer`'s `supported_regions`: set such arguments in a subclass (`FrPhoneRecognizer`), and check the result in a unit test.
+- `global_regex_flags: 26` includes IGNORECASE for every pattern; `FrAddressRecognizer` uses `(?-i:...)` where a capital letter matters.
+- Context words are matched as substrings of the lemmas of the 5 words before a match, so use single words or stems (`domicil`, `joign`), not phrases.
 - RAM measured at 1.6 GiB with the French and English models (1.0 GiB with French only), hence `mem_limit: 2g`.
 - Both Presidio services set `GUNICORN_CMD_ARGS=--no-control-socket`: with the control socket on, gunicorn 25.1.0 forks the worker while a thread logs, and the worker can hang forever before `Booting worker` (gunicorn issue #3529). It happened in CI, not locally. Remove the flag only once the images ship a fixed gunicorn.
 - The image's own healthcheck runs every 30 s; `compose.yaml` overrides it with a 5 s interval so `up --wait` does not stall.
@@ -42,8 +46,9 @@ Image versions are pinned in `compose.yaml`. When bumping them, keep the healthc
 Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); there is no Makefile. Run `just` to list recipes.
 
 - `just gateway-up`: start the stack, wait until every service is healthy, then create or update the client teams and keys. Creates `.env` from `.env.example` if missing.
-- `just test`: run the pytest integration suite in `tests/` through `uv run` (dependencies in `pyproject.toml`, locked in `uv.lock`). Starts the stack if needed. Extra arguments go to pytest: `just test -k budget`, `just test tests/test_fallback.py`.
-- `just smoke`: only `tests/test_routing.py`, a quick check that every alias answers after `just gateway-reload`.
+- `just test`: run every pytest test in `tests/` through `uv run` (dependencies in `pyproject.toml`, locked in `uv.lock`). Starts the stack if needed. Extra arguments go to pytest: `just test -k budget`, `just test tests/integration/test_fallback.py`.
+- `just test-unit`: only `tests/unit/`, the recognizer tests; no stack needed, under a second.
+- `just smoke`: only `tests/integration/test_routing.py`, a quick check that every alias answers after `just gateway-reload`.
 - `just tenants`: apply `config/tenants.yaml` to the running gateway (also run by `just gateway-up`).
 - `just gateway-reload`: restart LiteLLM after a change to `config/litellm.yaml`.
 - `just gateway-down`: stop the stack; `just gateway-down --volumes` also deletes the database and the models.
@@ -51,13 +56,15 @@ Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); t
 - `just hooks`: install the pre-commit and commit-msg git hooks.
 - `just lint`: run every pre-commit check (whitespace, YAML, yamllint, markdownlint, gitleaks) on all files.
 
-CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, the full stack and the pytest suite on a clean runner (about 3.5 minutes, limit 10), and checks that the PR title is a Conventional Commit, since PRs are squash-merged.
+CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, the unit tests, the full stack and the pytest suite on a clean runner (about 3.5 minutes, limit 10), and checks that the PR title is a Conventional Commit, since PRs are squash-merged.
 
 ## Tests
 
-`tests/` is an integration suite against the running stack; there are no unit tests, since the repo holds configuration and one bootstrap script. Keep in mind:
+`tests/unit/` tests the Presidio recognizers without Docker: its conftest builds the registry from the real `config/presidio/recognizers.yaml` with the `presidio-analyzer` package, pinned to the image's version (as is `phonenumbers`), and `pytest.ini_options.pythonpath` makes `pii_recognizers` importable. Each recognizer has at least 10 valid cases plus false positives and edge cases; valid NIRs, tax numbers and IBANs were generated and checked with python-stdnum (`uvx --with python-stdnum python`).
 
-- `tests/helpers.py` loads `.env` and holds the shared helpers; `conftest.py` holds the fixtures. The session fixture runs `docker compose up --wait` and the bootstrap, both no-ops when everything already runs.
+`tests/integration/` runs against the stack. Keep in mind:
+
+- `tests/integration/helpers.py` loads `.env` and holds the shared helpers; `conftest.py` holds the fixtures. The session fixture runs `docker compose up --wait` and the bootstrap, both no-ops when everything already runs.
 - Tests marked `disruptive` (stopping a container) are moved to the end of the run by `pytest_collection_modifyitems`: after `ollama-large` restarts, a pooled connection to the old server could make the next `chat-large` call wait for its timeout.
 - Tests on limits and budgets use the `temp_team` fixture, never the real teams, so their spend and limits stay untouched. Clients have `max_retries=0`, otherwise the SDK retries a 429 and hides it.
 - The job deliberately uses the production models and configuration: a test must fail when `config/litellm.yaml` is broken.
