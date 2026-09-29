@@ -5,7 +5,7 @@
 
 **One gateway for every LLM call in the company: per-team keys and budgets, French PII anonymized before inference, every call traced and priced.**
 
-> Status: under construction. Milestone 1.1 (local gateway) is in progress: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. See the [roadmap](#roadmap).
+> Status: under construction. Milestone 1.1 (local gateway) is done: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. Milestone 1.2 (Presidio anonymization) is in progress: Presidio runs in the stack with a French model, and is not wired into the gateway yet. See the [roadmap](#roadmap).
 
 ## Why
 
@@ -48,12 +48,12 @@ flowchart LR
 Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https://docs.astral.sh/uv/) for the tests.
 
 ```bash
-just gateway-up       # LiteLLM, PostgreSQL, two Ollama servers, then the client teams; creates .env on first run
-just test             # integration tests: aliases, access per team, rate limit, budget, fallback
+just gateway-up       # LiteLLM, PostgreSQL, two Ollama servers, Presidio, then the client teams; creates .env on first run
+just test             # integration tests: aliases, access per team, rate limit, budget, fallback, Presidio
 just gateway-down     # add --volumes to also delete the database and the downloaded models
 ```
 
-First start on a clean machine: about 70 seconds, including the download of three models (about 2 GB).
+First start on a clean machine: about 2 minutes 10 seconds, including the download of three models (about 2 GB) and the build of the Presidio Analyzer image with its French model (2.8 GB on disk).
 The gateway listens on `http://localhost:4000` and speaks the OpenAI API. Call it with a team key from `.env`, such as `TEAM_KEY_F1`:
 
 ```python
@@ -64,7 +64,7 @@ client.chat.completions.create(model="chat-small", messages=[{"role": "user", "c
 client.embeddings.create(model="embed", input="Le locataire a payé son loyer en retard.")
 ```
 
-Presidio and Langfuse join the stack in milestones 1.2 and 1.3. To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `just hooks`, and run `just lint`. Run `just` alone to list every recipe.
+Langfuse joins the stack in milestone 1.3. To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `just hooks`, and run `just lint`. Run `just` alone to list every recipe.
 
 ## Models and routing
 
@@ -124,6 +124,37 @@ The budget blocks the call right after the one that crossed it: LiteLLM counts s
 
 **Why local models have a price.** LiteLLM knows no price for Ollama models, so spend stayed at $0 and budgets never triggered. Each alias carries an internal price per token instead (`chat-small` $0.10 / $0.40 per million tokens in / out, `chat-large` five times more, `embed` $0.02), a chargeback rate that works the same once a paid API joins. See [ADR-014](docs/adr/014-internal-price-for-self-hosted-models.md).
 
+## Personal data detection (Presidio)
+
+[Presidio](https://microsoft.github.io/presidio/) runs as two services. The **Analyzer** finds personal data in a text and returns its type, position and score; the **Anonymizer** replaces those spans with placeholders.
+The gateway does not call them yet: LAB-115 turns them into a LiteLLM guardrail. Until then, they can be called directly on `127.0.0.1`:
+
+```bash
+curl -s localhost:5002/analyze -H 'content-type: application/json' \
+  -d '{"text": "Je suis Marie Dupont et j'"'"'habite à Lyon.", "language": "fr"}'
+# PERSON "Marie Dupont" and LOCATION "Lyon", score 0.85 each
+```
+
+The official Analyzer image only ships an English spaCy model, which misses French names and places. [`docker/presidio-analyzer/Dockerfile`](docker/presidio-analyzer/Dockerfile) adds `fr_core_news_lg` 3.8.0, pinned by version and SHA-256.
+The configuration is mounted from [`config/presidio/`](config/presidio/), so changing it needs `docker compose restart presidio-analyzer`, not a rebuild:
+
+| File | Sets |
+| -- | -- |
+| `nlp.yaml` | One spaCy model per language (`fr`, `en`) and how their labels map to Presidio entities |
+| `recognizers.yaml` | The pattern recognizers (email, IBAN, phone, credit card, IP, URL, date) and the spaCy NER recognizer; French identifiers come in LAB-114 |
+| `analyzer.yaml` | Supported languages and the default score threshold |
+
+Memory of the Analyzer, measured with `docker stats` after 30 requests:
+
+| Models loaded | RAM |
+| -- | -- |
+| `en_core_web_lg` (official image) | 740 MiB |
+| `fr_core_news_lg` | 1.0 GiB |
+| `fr_core_news_lg` + `en_core_web_lg` (this stack) | 1.6 GiB |
+
+English costs 570 MiB more; it stays so that prompts in English, such as F1 data, are still analyzed. The container is limited to 2 GiB.
+It starts in about 6 seconds once the image is built, and analyzes a 30-word French sentence in about 6 ms on a laptop CPU.
+
 ## Tests
 
 Every promise of the gateway is an integration test in [`tests/`](tests/): pytest calls the real stack with the OpenAI SDK and a team key, as a client team would.
@@ -132,18 +163,19 @@ Every promise of the gateway is an integration test in [`tests/`](tests/): pytes
 | -- | -- |
 | `test_routing.py` | Each alias answers, served by its own model (header `x-litellm-model-group`); `embed` returns 768 dimensions |
 | `test_tenants.py` | Allowed and refused aliases per team (401), rate limit (429), budget (400), isolation from other teams, idempotent bootstrap |
+| `test_presidio.py` | The Analyzer finds a person, a place and an email in French, and still works in English; the Anonymizer replaces what it found |
 | `test_fallback.py` | With `ollama-large` stopped, `chat-large` is served by `chat-small` within 30 s and the logs show the fallback |
 
 `just test` starts the stack if it is not running, and passes its arguments to pytest: `just test -k budget`, `just test tests/test_fallback.py`.
 The fallback test stops a container, so it always runs last, and restarts it afterwards even on failure.
 
-CI runs the suite on every PR on a clean runner, with the same models as in development: 2 min 43 s for the job, of which about 2 min to start the stack and download the models. A tiny model in CI was not worth it: it would need a CI-only LiteLLM configuration, and the tests would no longer check the real one.
+CI runs the suite on every PR on a clean runner, with the same models as in development: 3 min 22 s for the job, of which 2 min 21 s to start the stack, download the models and build the Presidio Analyzer image. A tiny model in CI was not worth it: it would need a CI-only LiteLLM configuration, and the tests would no longer check the real one.
 Removing the fallback from `config/litellm.yaml` makes `test_fallback.py` fail with a `500 APIConnectionError`, so a broken routing configuration cannot be merged.
 
 ## Roadmap
 
-- [ ] **1.1 Local gateway** (compose stack, routing, keys, budgets and CI tests done; cross-cutting ADRs next): LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
-- [ ] **1.2 Presidio anonymization**: pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
+- [x] **1.1 Local gateway**: LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
+- [ ] **1.2 Presidio anonymization** (Presidio with a French model in the stack; French recognizers next): pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
 - [ ] **1.3 Tracing and cost with Langfuse**: self-hosted Langfuse, cost per team, automated test proving traces hold no personal data.
 - [ ] **1.4 ADR, README and article 1**: why LiteLLM rather than a home-made or cloud gateway; demo GIF.
 

@@ -1,0 +1,6 @@
+# Analyzer engine settings. Languages must match nlp.yaml and recognizers.yaml.
+supported_languages:
+  - fr
+  - en
+# Return every detection; callers filter with score_threshold on each request.
+default_score_threshold: 0
