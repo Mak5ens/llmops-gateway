@@ -38,18 +38,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  gateway-smoke:
-    # Starts the whole stack on a clean runner, calls every alias, then cuts chat-large to check the fallback.
+  gateway-integration:
+    # Starts the whole stack on a clean runner, then runs the pytest suite: every alias, access per team,
+    # rate limit, budget, and the chat-large fallback. Breaking any of these in config/ turns the job red.
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Acceptance criterion of LAB-112: the job stays under 10 minutes.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
       - uses: extractions/setup-just@v4
+      # A step of its own, so its duration (model download included) shows apart from the tests.
       - run: just gateway-up
-      - run: just smoke
-      - run: just tenants-test
-      - run: just fallback-test
+      - run: just test
       - if: failure()
         run: docker compose logs
       - if: always()

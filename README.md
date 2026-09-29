@@ -49,9 +49,7 @@ Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https:/
 
 ```bash
 just gateway-up       # LiteLLM, PostgreSQL, two Ollama servers, then the client teams; creates .env on first run
-just smoke            # calls every alias with the OpenAI SDK
-just tenants-test     # checks aliases per team, rate limit, budget and isolation between teams
-just fallback-test    # stops the chat-large server and checks the gateway falls back to chat-small
+just test             # integration tests: aliases, access per team, rate limit, budget, fallback
 just gateway-down     # add --volumes to also delete the database and the downloaded models
 ```
 
@@ -79,7 +77,7 @@ Teams call **usage aliases**, never model names. The platform decides which mode
 | `embed` | Embeddings, multilingual (French included), 768 dimensions | `granite-embedding:278m` | `ollama` | 30 s |
 
 **Fallback.** If `chat-large` fails or times out, the gateway answers with `chat-small`. The response header `x-litellm-model-group` says which alias actually served the call, and the logs show `Falling back to model_group = chat-small`.
-Measured with `just fallback-test` on a laptop CPU:
+Measured with `just test -k fallback` on a laptop CPU:
 
 | Situation | Time to answer through `chat-small` |
 | -- | -- |
@@ -94,7 +92,7 @@ Measured with `just fallback-test` on a laptop CPU:
 1. Add the model to `OLLAMA_MODELS` in `.env` (and in `.env.example` for everyone), then run `just gateway-up` to download it.
 2. In `config/litellm.yaml`, point an alias to it, or add a new entry to `model_list` with a usage alias as `model_name`, the model as `ollama_chat/<name>` (or `ollama/<name>` for embeddings), the server as `api_base`, and a `timeout`.
 3. Run `just gateway-reload`: Compose does not see changes to a mounted file, so LiteLLM must restart to read it.
-4. Run `just smoke`, and add the new alias to `scripts/smoke_test.py` if you created one.
+4. Run `just smoke` (the alias tests), and add the new alias to `tests/test_routing.py` if you created one.
 
 Clients keep calling the same alias throughout.
 
@@ -121,14 +119,30 @@ A team that steps out of its limits gets an explicit error, and only that team i
 | More requests or tokens per minute than the key allows | `429`: *Rate limit exceeded [...] Current limit: 2, Remaining: 0. Limit resets at: [time]* |
 | Budget spent | `400 budget_exceeded`: *Budget has been exceeded! Team=[team] Current cost: [...], Max budget: [...]* |
 
-`just tenants-test` checks all three on a throwaway team, checks that `f1` still answers meanwhile, and checks that re-running the bootstrap left exactly one key per team.
+`tests/test_tenants.py` checks all three on a throwaway team, checks that `f1` still answers meanwhile, and checks that re-running the bootstrap left exactly one key per team.
 The budget blocks the call right after the one that crossed it: LiteLLM counts spend in memory at once, and writes it to PostgreSQL in batches, so `/team/info` may show it a few seconds later.
 
 **Why local models have a price.** LiteLLM knows no price for Ollama models, so spend stayed at $0 and budgets never triggered. Each alias carries an internal price per token instead (`chat-small` $0.10 / $0.40 per million tokens in / out, `chat-large` five times more, `embed` $0.02), a chargeback rate that works the same once a paid API joins. See [ADR-001](docs/adr/001-internal-price-for-self-hosted-models.md).
 
+## Tests
+
+Every promise of the gateway is an integration test in [`tests/`](tests/): pytest calls the real stack with the OpenAI SDK and a team key, as a client team would.
+
+| File | Checks |
+| -- | -- |
+| `test_routing.py` | Each alias answers, served by its own model (header `x-litellm-model-group`); `embed` returns 768 dimensions |
+| `test_tenants.py` | Allowed and refused aliases per team (401), rate limit (429), budget (400), isolation from other teams, idempotent bootstrap |
+| `test_fallback.py` | With `ollama-large` stopped, `chat-large` is served by `chat-small` within 30 s and the logs show the fallback |
+
+`just test` starts the stack if it is not running, and passes its arguments to pytest: `just test -k budget`, `just test tests/test_fallback.py`.
+The fallback test stops a container, so it always runs last, and restarts it afterwards even on failure.
+
+CI runs the suite on every PR on a clean runner, with the same models as in development: 2 min 43 s for the job, of which about 2 min to start the stack and download the models. A tiny model in CI was not worth it: it would need a CI-only LiteLLM configuration, and the tests would no longer check the real one.
+Removing the fallback from `config/litellm.yaml` makes `test_fallback.py` fail with a `500 APIConnectionError`, so a broken routing configuration cannot be merged.
+
 ## Roadmap
 
-- [ ] **1.1 Local gateway** (compose stack, routing, keys and budgets done): LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
+- [ ] **1.1 Local gateway** (compose stack, routing, keys, budgets and CI tests done; cross-cutting ADRs next): LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
 - [ ] **1.2 Presidio anonymization**: pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
 - [ ] **1.3 Tracing and cost with Langfuse**: self-hosted Langfuse, cost per team, automated test proving traces hold no personal data.
 - [ ] **1.4 ADR, README and article 1**: why LiteLLM rather than a home-made or cloud gateway; demo GIF.

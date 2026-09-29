@@ -34,18 +34,25 @@ Image versions are pinned in `compose.yaml`. When bumping them, keep the healthc
 Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); there is no Makefile. Run `just` to list recipes.
 
 - `just gateway-up`: start the stack, wait until every service is healthy, then create or update the client teams and keys. Creates `.env` from `.env.example` if missing.
-- `just smoke`: call every alias with the OpenAI SDK through `uv run`, and fail on an empty answer.
-- `just fallback-test`: warm a connection to `chat-large`, stop `ollama-large`, and check `chat-small` answers within 30 s; restarts `ollama-large` even on failure.
+- `just test`: run the pytest integration suite in `tests/` through `uv run` (dependencies in `pyproject.toml`, locked in `uv.lock`). Starts the stack if needed. Extra arguments go to pytest: `just test -k budget`, `just test tests/test_fallback.py`.
+- `just smoke`: only `tests/test_routing.py`, a quick check that every alias answers after `just gateway-reload`.
 - `just tenants`: apply `config/tenants.yaml` to the running gateway (also run by `just gateway-up`).
-- `just tenants-test`: re-run the bootstrap, then check allowed and refused aliases per team, the rate limit (429) and the budget (400) on a throwaway team, isolation from `f1`, and one key per team.
-- `just test`: smoke, tenants-test and fallback-test.
 - `just gateway-reload`: restart LiteLLM after a change to `config/litellm.yaml`.
 - `just gateway-down`: stop the stack; `just gateway-down --volumes` also deletes the database and the models.
 - `just gateway-logs`: follow the logs.
 - `just hooks`: install the pre-commit and commit-msg git hooks.
 - `just lint`: run every pre-commit check (whitespace, YAML, yamllint, markdownlint, gitleaks) on all files.
 
-CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, the full stack with the smoke, tenant and fallback tests on a clean runner, and checks that the PR title is a Conventional Commit, since PRs are squash-merged.
+CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, the full stack and the pytest suite on a clean runner (about 3 minutes, limit 10), and checks that the PR title is a Conventional Commit, since PRs are squash-merged.
+
+## Tests
+
+`tests/` is an integration suite against the running stack; there are no unit tests, since the repo holds configuration and one bootstrap script. Keep in mind:
+
+- `tests/helpers.py` loads `.env` and holds the shared helpers; `conftest.py` holds the fixtures. The session fixture runs `docker compose up --wait` and the bootstrap, both no-ops when everything already runs.
+- Tests marked `disruptive` (stopping a container) are moved to the end of the run by `pytest_collection_modifyitems`: after `ollama-large` restarts, a pooled connection to the old server could make the next `chat-large` call wait for its timeout.
+- Tests on limits and budgets use the `temp_team` fixture, never the real teams, so their spend and limits stay untouched. Clients have `max_retries=0`, otherwise the SDK retries a 429 and hides it.
+- The job deliberately uses the production models and configuration: a test must fail when `config/litellm.yaml` is broken.
 
 ## Conventions
 
