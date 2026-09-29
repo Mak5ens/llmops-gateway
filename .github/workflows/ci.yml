@@ -39,7 +39,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   gateway-smoke:
-    # Starts the whole stack on a clean runner and calls it with the OpenAI SDK, like `just gateway-up smoke`.
+    # Starts the whole stack on a clean runner, calls every alias, then cuts chat-large to check the fallback.
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -48,6 +48,7 @@ jobs:
       - uses: extractions/setup-just@v4
       - run: just gateway-up
       - run: just smoke
+      - run: just fallback-test
       - if: failure()
         run: docker compose logs
       - if: always()
