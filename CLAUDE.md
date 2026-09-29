@@ -18,7 +18,7 @@ Routing lives in `config/litellm.yaml`: callers only use usage aliases (`chat-sm
 - A pooled connection to a server that died hangs until the model `timeout`, so that timeout is the worst-case failover time. `chat-large` has `num_retries: 0` because each retry waits the full timeout again. `retry_policy.TimeoutErrorRetries` does not help: LiteLLM raises `APIConnectionError` there, which no retry policy field matches.
 - `allowed_fails` and `cooldown_time` have no effect with one deployment per alias (see `router_utils/cooldown_handlers.py` in the image).
 - `LITELLM_LOG=INFO` is what makes retries and fallbacks visible in the logs.
-- Every alias has `input_cost_per_token` / `output_cost_per_token`: LiteLLM knows no price for Ollama models, and without one spend stays at $0 so budgets never trigger (ADR-001). A new alias needs a price too.
+- Every alias has `input_cost_per_token` / `output_cost_per_token`: LiteLLM knows no price for Ollama models, and without one spend stays at $0 so budgets never trigger (ADR-014). A new alias needs a price too.
 
 Client teams (`f1`, `mj`, `baux`) live in `config/tenants.yaml`: aliases allowed per team, budget per team, rpm/tpm limits per key. `scripts/bootstrap_tenants.py` applies the file through the LiteLLM admin API; it runs in the `tenants-bootstrap` one-shot service, which reuses the LiteLLM image. Things to keep in mind:
 
@@ -58,5 +58,5 @@ CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, t
 
 - Branch names come from Linear issues: `feature/lab-<n>-<slug>`.
 - Commits follow Conventional Commits, enforced by a commit-msg hook.
-- ADRs specific to this repo go in `docs/adr/`, copied from `000-template.md`. Cross-cutting ADRs live in `llmops-platform/docs/adr/`.
+- ADRs specific to this repo go in `docs/adr/`, copied from `000-template.md`. Cross-cutting ADRs live in `llmops-platform/docs/adr/`. ADR numbers are global to the portfolio and planned in Linear (001-006 and 010 cross-cutting, 007 LiteLLM, 008 ArgoCD, 009 KEDA, 012-013 F1, 014 here): take the next free number, never reuse one.
 - Public repo: synthetic or public data only, never employer code or data. Claims come with real numbers (latency, detection rate, cost).
