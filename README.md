@@ -169,7 +169,7 @@ Every promise of the gateway is an integration test in [`tests/`](tests/): pytes
 `just test` starts the stack if it is not running, and passes its arguments to pytest: `just test -k budget`, `just test tests/test_fallback.py`.
 The fallback test stops a container, so it always runs last, and restarts it afterwards even on failure.
 
-CI runs the suite on every PR on a clean runner, with the same models as in development: 2 min 43 s for the job, of which about 2 min to start the stack and download the models. A tiny model in CI was not worth it: it would need a CI-only LiteLLM configuration, and the tests would no longer check the real one.
+CI runs the suite on every PR on a clean runner, with the same models as in development: 3 min 22 s for the job, of which 2 min 21 s to start the stack, download the models and build the Presidio Analyzer image. A tiny model in CI was not worth it: it would need a CI-only LiteLLM configuration, and the tests would no longer check the real one.
 Removing the fallback from `config/litellm.yaml` makes `test_fallback.py` fail with a `500 APIConnectionError`, so a broken routing configuration cannot be merged.
 
 ## Roadmap
