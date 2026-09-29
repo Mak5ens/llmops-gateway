@@ -79,6 +79,29 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  # One-shot job: creates or updates the client teams and their keys from config/tenants.yaml, then exits.
+  # Reuses the LiteLLM image, which already has Python and PyYAML.
+  # Run by `just gateway-up` and `just tenants` with `docker compose run`. The profile keeps it out of
+  # `docker compose up --wait`, which fails on any container that exits, even with code 0, when nothing depends on it.
+  tenants-bootstrap:
+    image: ghcr.io/berriai/litellm-database:main-v1.83.14-stable
+    profiles: [bootstrap]
+    entrypoint: ["python3", "/scripts/bootstrap_tenants.py"]
+    environment:
+      LITELLM_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY}
+      TENANTS_FILE: /config/tenants.yaml
+      TEAM_KEY_F1: ${TEAM_KEY_F1:?set in .env}
+      TEAM_KEY_MJ: ${TEAM_KEY_MJ:?set in .env}
+      TEAM_KEY_BAUX: ${TEAM_KEY_BAUX:?set in .env}
+    volumes:
+      - ./config/tenants.yaml:/config/tenants.yaml:ro
+      - ./scripts/bootstrap_tenants.py:/scripts/bootstrap_tenants.py:ro
+    depends_on:
+      litellm:
+        condition: service_healthy
+    restart: "no"
+
 volumes:
   postgres-data:
   ollama-models:
