@@ -48,6 +48,7 @@ jobs:
       - uses: extractions/setup-just@v4
       - run: just gateway-up
       - run: just smoke
+      - run: just tenants-test
       - run: just fallback-test
       - if: failure()
         run: docker compose logs

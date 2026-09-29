@@ -1,0 +1,45 @@
+# Client teams of the gateway: what each one may call, how much it may spend, and how fast.
+# Applied by scripts/bootstrap_tenants.py on every `just gateway-up` (the `tenants-bootstrap` service).
+# Re-running is safe: missing teams and keys are created, existing ones are updated to match this file.
+# Removing a team from this file does not delete it from the gateway.
+#
+# Budgets are in US dollars, counted with the internal prices set per alias in config/litellm.yaml.
+# budget_duration resets the spend: "30d", "7d", "1h"...
+
+teams:
+  # F1 strategy analyst: an agent with RAG over race data, so it needs chat and embeddings.
+  - team_id: f1
+    team_alias: F1 strategy analyst
+    models: [chat-small, chat-large, embed]
+    max_budget: 10
+    budget_duration: 30d
+    key:
+      key_alias: f1-app
+      # The key value is a secret: it comes from .env locally, from a secret manager on the cluster.
+      value_env: TEAM_KEY_F1
+      rpm_limit: 60
+      tpm_limit: 100000
+
+  # Game master assistant: chat only, and the most bursty traffic (players waiting at the table).
+  - team_id: mj
+    team_alias: Game master assistant
+    models: [chat-small, chat-large]
+    max_budget: 5
+    budget_duration: 30d
+    key:
+      key_alias: mj-app
+      value_env: TEAM_KEY_MJ
+      rpm_limit: 30
+      tpm_limit: 50000
+
+  # Residential lease compliance checker: long documents, quality over speed, RAG over the law.
+  - team_id: baux
+    team_alias: Lease compliance checker
+    models: [chat-large, embed]
+    max_budget: 5
+    budget_duration: 30d
+    key:
+      key_alias: baux-app
+      value_env: TEAM_KEY_BAUX
+      rpm_limit: 20
+      tpm_limit: 50000

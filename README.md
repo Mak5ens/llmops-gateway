@@ -5,7 +5,7 @@
 
 **One gateway for every LLM call in the company: per-team keys and budgets, French PII anonymized before inference, every call traced and priced.**
 
-> Status: under construction. Milestone 1.1 (local gateway) is in progress: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback. See the [roadmap](#roadmap).
+> Status: under construction. Milestone 1.1 (local gateway) is in progress: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. See the [roadmap](#roadmap).
 
 ## Why
 
@@ -48,19 +48,20 @@ flowchart LR
 Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https://docs.astral.sh/uv/) for the tests.
 
 ```bash
-just gateway-up       # LiteLLM, PostgreSQL and two Ollama servers; creates .env from .env.example on first run
+just gateway-up       # LiteLLM, PostgreSQL, two Ollama servers, then the client teams; creates .env on first run
 just smoke            # calls every alias with the OpenAI SDK
+just tenants-test     # checks aliases per team, rate limit, budget and isolation between teams
 just fallback-test    # stops the chat-large server and checks the gateway falls back to chat-small
 just gateway-down     # add --volumes to also delete the database and the downloaded models
 ```
 
 First start on a clean machine: about 70 seconds, including the download of three models (about 2 GB).
-The gateway listens on `http://localhost:4000` and speaks the OpenAI API; authenticate with `LITELLM_MASTER_KEY` from `.env`:
+The gateway listens on `http://localhost:4000` and speaks the OpenAI API. Call it with a team key from `.env`, such as `TEAM_KEY_F1`:
 
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://localhost:4000", api_key="sk-local-dev-master-key")
+client = OpenAI(base_url="http://localhost:4000", api_key="sk-local-dev-team-f1")
 client.chat.completions.create(model="chat-small", messages=[{"role": "user", "content": "Hello"}])
 client.embeddings.create(model="embed", input="Le locataire a payé son loyer en retard.")
 ```
@@ -97,9 +98,37 @@ Measured with `just fallback-test` on a laptop CPU:
 
 Clients keep calling the same alias throughout.
 
+## Teams, keys and budgets
+
+Every client team has its own virtual key, the aliases it may call, a monthly budget and a rate limit, declared in [`config/tenants.yaml`](config/tenants.yaml).
+The master key stays with the platform team: it creates teams and keys, and no application uses it.
+
+| Team | Tenant | Aliases | Budget | Key limits |
+| -- | -- | -- | -- | -- |
+| `f1` | F1 strategy analyst (agent with RAG) | `chat-small`, `chat-large`, `embed` | $10 / 30 days | 60 requests and 100k tokens per minute |
+| `mj` | Game master assistant | `chat-small`, `chat-large` | $5 / 30 days | 30 requests and 50k tokens per minute |
+| `baux` | Lease compliance checker | `chat-large`, `embed` | $5 / 30 days | 20 requests and 50k tokens per minute |
+
+`just gateway-up` applies the file through [`scripts/bootstrap_tenants.py`](scripts/bootstrap_tenants.py), and `just tenants` applies it again after an edit, without restarting anything.
+The script is idempotent: it creates what is missing, updates what exists, and never deletes a team.
+Key values come from `.env` (`TEAM_KEY_F1`, `TEAM_KEY_MJ`, `TEAM_KEY_BAUX`); on the cluster they will come from a secret manager.
+
+A team that steps out of its limits gets an explicit error, and only that team is blocked:
+
+| Situation | Answer |
+| -- | -- |
+| Alias not allowed for the team | `401 team_model_access_denied`: *This team can only access models=['chat-small', 'chat-large']. Tried to access embed* |
+| More requests or tokens per minute than the key allows | `429`: *Rate limit exceeded [...] Current limit: 2, Remaining: 0. Limit resets at: [time]* |
+| Budget spent | `400 budget_exceeded`: *Budget has been exceeded! Team=[team] Current cost: [...], Max budget: [...]* |
+
+`just tenants-test` checks all three on a throwaway team, checks that `f1` still answers meanwhile, and checks that re-running the bootstrap left exactly one key per team.
+The budget blocks the call right after the one that crossed it: LiteLLM counts spend in memory at once, and writes it to PostgreSQL in batches, so `/team/info` may show it a few seconds later.
+
+**Why local models have a price.** LiteLLM knows no price for Ollama models, so spend stayed at $0 and budgets never triggered. Each alias carries an internal price per token instead (`chat-small` $0.10 / $0.40 per million tokens in / out, `chat-large` five times more, `embed` $0.02), a chargeback rate that works the same once a paid API joins. See [ADR-001](docs/adr/001-internal-price-for-self-hosted-models.md).
+
 ## Roadmap
 
-- [ ] **1.1 Local gateway** (compose stack and routing done; keys and budgets next): LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
+- [ ] **1.1 Local gateway** (compose stack, routing, keys and budgets done): LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
 - [ ] **1.2 Presidio anonymization**: pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
 - [ ] **1.3 Tracing and cost with Langfuse**: self-hosted Langfuse, cost per team, automated test proving traces hold no personal data.
 - [ ] **1.4 ADR, README and article 1**: why LiteLLM rather than a home-made or cloud gateway; demo GIF.

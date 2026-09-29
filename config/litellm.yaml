@@ -3,6 +3,10 @@
 #
 # Callers only know usage aliases (chat-small, chat-large, embed). Which model serves an alias is decided here,
 # so swapping a model is a change to this file and to OLLAMA_MODELS in .env, never to client code.
+#
+# input_cost_per_token and output_cost_per_token are internal prices, in dollars: LiteLLM knows no price for
+# Ollama models, so without them every team spends $0 and budgets never trigger.
+# See docs/adr/001-internal-price-for-self-hosted-models.md.
 
 model_list:
   # Fast and cheap: short answers, classification, extraction.
@@ -11,6 +15,8 @@ model_list:
       model: ollama_chat/qwen2.5:0.5b
       api_base: http://ollama:11434
       timeout: 30
+      input_cost_per_token: 0.0000001
+      output_cost_per_token: 0.0000004
 
   # Better answers, slower. Falls back to chat-small when it fails or times out (see router_settings).
   # The timeout is also the worst-case time to detect a dead server: a pooled connection to a server that
@@ -20,6 +26,8 @@ model_list:
       model: ollama_chat/qwen2.5:1.5b
       api_base: http://ollama-large:11434
       timeout: 20
+      input_cost_per_token: 0.0000005
+      output_cost_per_token: 0.000002
       # The fallback is the retry: retrying a server that did not answer doubles the wait before chat-small.
       num_retries: 0
 
@@ -29,6 +37,7 @@ model_list:
       model: ollama/granite-embedding:278m
       api_base: http://ollama:11434
       timeout: 30
+      input_cost_per_token: 0.00000002
 
 router_settings:
   # One retry on the same alias by default, then the fallback chain.
