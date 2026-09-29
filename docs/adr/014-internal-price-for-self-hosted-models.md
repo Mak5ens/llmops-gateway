@@ -1,4 +1,4 @@
-# ADR-001: Budget self-hosted models with an internal price per token
+# ADR-014: Budget self-hosted models with an internal price per token
 
 - **Status:** Accepted
 - **Date:** 2026-09-29

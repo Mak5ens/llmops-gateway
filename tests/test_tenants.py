@@ -48,7 +48,7 @@ def test_rate_limit_blocks_the_key_and_not_other_teams(temp_team, new_key, team_
 def test_budget_blocks_the_team_and_not_other_teams(admin, temp_team, new_key, team_client):
     client = new_key(team_id=temp_team)
     ask(client, "chat-small")
-    # One call costs about $0.000005 at the internal price of chat-small (ADR-001): the team is now over budget.
+    # One call costs about $0.000005 at the internal price of chat-small (ADR-014): the team is now over budget.
     admin.post("/team/update", json={"team_id": temp_team, "max_budget": 0.000001}).raise_for_status()
 
     with pytest.raises(openai.BadRequestError) as blocked:

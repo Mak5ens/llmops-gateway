@@ -6,7 +6,7 @@
 #
 # input_cost_per_token and output_cost_per_token are internal prices, in dollars: LiteLLM knows no price for
 # Ollama models, so without them every team spends $0 and budgets never trigger.
-# See docs/adr/001-internal-price-for-self-hosted-models.md.
+# See docs/adr/014-internal-price-for-self-hosted-models.md.
 
 model_list:
   # Fast and cheap: short answers, classification, extraction.
