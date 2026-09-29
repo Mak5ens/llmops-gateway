@@ -1,0 +1,26 @@
+# Only holds the integration test dependencies: the gateway itself is configuration, not a Python package.
+# `uv run pytest` installs them in .venv from uv.lock.
+
+[project]
+name = "llmops-gateway"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28",
+    "openai>=2",
+    "pytest>=8",
+    "python-dotenv>=1",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v -ra"
+markers = [
+    "disruptive: stops a container of the stack; runs after every other test",
+]

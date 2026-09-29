@@ -36,25 +36,13 @@ tenants:
 gateway-logs:
     docker compose logs --follow
 
-# Call every alias (chat-small, chat-large, embed) with the OpenAI SDK
+# Call every alias with a team key: a quick check after `just gateway-reload`
 smoke: _env
-    uv run --no-project --with openai python scripts/smoke_test.py
+    uv run pytest tests/test_routing.py
 
-# Re-run the bootstrap, then check aliases per team, rate limit, budget, isolation and no duplicate keys
-tenants-test: _env tenants
-    uv run --no-project --with openai --with httpx python scripts/tenants_test.py
-
-# Stop ollama-large, check chat-large falls back to chat-small within 30 s, then restart it
-fallback-test: _env
-    #!/usr/bin/env bash
-    set -euo pipefail
-    trap 'docker compose start ollama-large >/dev/null 2>&1' EXIT
-    uv run --no-project --with openai python scripts/fallback_test.py
-    echo "Gateway logs:"
-    docker compose logs --since 45s --no-log-prefix litellm | grep "LiteLLM Router" | grep -E "Exception|fallback" | cut -c1-160
-
-# Run every test
-test: smoke tenants-test fallback-test
+# Run the integration tests (starts the stack if needed); pass pytest arguments, e.g. `just test -k budget`
+test *args: _env
+    uv run pytest {{ args }}
 
 [private]
 _env:
