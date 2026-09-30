@@ -1,8 +1,8 @@
 """Create or update the client teams and their virtual keys from config/tenants.yaml.
 
 Idempotent: a team or key that exists is updated to match the file, never duplicated.
-Nothing is deleted. Runs in the `tenants-bootstrap` service on every `just gateway-up`,
-and needs only the Python standard library and PyYAML (both in the LiteLLM image).
+Nothing is deleted. Runs in the `tenants-bootstrap` service on every `just gateway-up`, with the LiteLLM image,
+which has every library it needs. Then sets up Langfuse for the teams: scripts/bootstrap_langfuse.py.
 """
 
 import hashlib
@@ -14,6 +14,8 @@ import urllib.request
 
 import yaml
 
+import bootstrap_langfuse
+
 GATEWAY_URL = os.environ.get("LITELLM_URL", "http://localhost:4000")
 MASTER_KEY = os.environ["LITELLM_MASTER_KEY"]
 TENANTS_FILE = os.environ.get("TENANTS_FILE", "config/tenants.yaml")
@@ -22,6 +24,15 @@ TEAM_FIELDS = ("team_alias", "models", "max_budget", "budget_duration")
 KEY_FIELDS = ("key_alias", "rpm_limit", "tpm_limit")
 # Guardrail of config/litellm.yaml that runs on every request unless the team opts out of it.
 PII_GUARDRAIL = "pii-fr"
+
+
+def langfuse_logging(settings: dict) -> list[dict]:
+    """Team metadata that makes LiteLLM send the team's traces to its own Langfuse project.
+
+    The secret key stays in LiteLLM's environment: the metadata holds a reference to it, resolved on every call.
+    """
+    variables = {"langfuse_public_key": settings["public_key"], "langfuse_secret_key": f"os.environ/{settings['secret_key_env']}"}
+    return [{"callback_name": "langfuse_otel", "callback_type": "success_and_failure", "callback_vars": variables}]
 
 
 def call(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
@@ -62,6 +73,8 @@ def main() -> None:
         # LiteLLM reads the opt-out from the team metadata, which only the admin API can write.
         opted_out = [PII_GUARDRAIL] if team["pii_masking"] == "optional" else []
         team_body["metadata"] = {"opted_out_global_guardrails": opted_out}
+        if "langfuse" in team:
+            team_body["metadata"]["logging"] = langfuse_logging(team["langfuse"])
         ensure(f"team {team_id}", team_id in existing_team_ids, "/team/new", "/team/update", team_body)
 
         key = team["key"]
@@ -74,6 +87,8 @@ def main() -> None:
         key_hash = hashlib.sha256(value.encode()).hexdigest()
         _, found = call("GET", f"/key/list?key_hash={key_hash}")
         ensure(f"key {key['key_alias']}", found["total_count"] > 0, "/key/generate", "/key/update", key_body)
+
+    bootstrap_langfuse.main(teams)
 
 
 if __name__ == "__main__":

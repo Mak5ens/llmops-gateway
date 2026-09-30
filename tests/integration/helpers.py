@@ -8,6 +8,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import httpx
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -24,11 +25,14 @@ PRESIDIO_ANONYMIZER_URL = f"http://localhost:{os.environ.get('PRESIDIO_ANONYMIZE
 LANGFUSE_URL = f"http://localhost:{os.environ.get('LANGFUSE_PORT', '3100')}"
 LANGFUSE_KEYS = (os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
 LANGFUSE_ADMIN = (os.environ["LANGFUSE_ADMIN_EMAIL"], os.environ["LANGFUSE_ADMIN_PASSWORD"])
-TEAM_KEYS = {
-    "f1": os.environ["TEAM_KEY_F1"],
-    "mj": os.environ["TEAM_KEY_MJ"],
-    "baux": os.environ["TEAM_KEY_BAUX"],
+TEAMS = ("f1", "mj", "baux")
+TEAM_KEYS = {team: os.environ[f"TEAM_KEY_{team.upper()}"] for team in TEAMS}
+# API keys of each Langfuse project: Gateway, then one per team (config/tenants.yaml).
+LANGFUSE_PROJECT_KEYS = {"gateway": LANGFUSE_KEYS} | {
+    team: (f"pk-lf-{team}", os.environ[f"LANGFUSE_SECRET_KEY_{team.upper()}"]) for team in TEAMS
 }
+# Read-only account of each team's lead.
+LANGFUSE_LEADS = {team: (f"{team}-lead@llmops.local", os.environ[f"LANGFUSE_VIEWER_PASSWORD_{team.upper()}"]) for team in TEAMS}
 
 
 def compose(*args: str) -> subprocess.CompletedProcess:
@@ -50,3 +54,15 @@ def ask(client: OpenAI, alias: str, max_tokens: int = 5):
     return client.chat.completions.with_raw_response.create(
         model=alias, messages=[{"role": "user", "content": "Say hello in French."}], max_tokens=max_tokens
     )
+
+
+def langfuse_session(email: str, password: str) -> dict:
+    """Sign in to the Langfuse UI and return the session, with the organizations and projects the account sees.
+
+    Empty when the sign-in is refused.
+    """
+    with httpx.Client(base_url=LANGFUSE_URL, timeout=30) as client:
+        csrf = client.get("/api/auth/csrf").json()["csrfToken"]
+        form = {"email": email, "password": password, "csrfToken": csrf, "json": "true"}
+        client.post("/api/auth/callback/credentials", data=form)
+        return client.get("/api/auth/session").json()

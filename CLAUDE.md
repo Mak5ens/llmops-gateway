@@ -10,7 +10,7 @@ Planning lives in Linear (team key `LAB`, project "Plateforme IA · Gateway d'en
 
 ## Current state
 
-Milestones 1.1 and 1.2 (Presidio) are done; 1.3 (Langfuse) is in progress. `compose.yaml` runs LiteLLM Proxy (`litellm-database` image, which applies its Prisma migrations to PostgreSQL at startup), PostgreSQL and two Ollama servers sharing one model volume: `ollama` serves `chat-small` and `embed`, `ollama-large` serves `chat-large`, so stopping it simulates an outage of one model server. A one-shot `ollama-pull` service downloads every model in `OLLAMA_MODELS` before LiteLLM starts. Presidio Analyzer and Anonymizer run in the stack, called by the `pii-fr` guardrail of LiteLLM. Langfuse v4 runs from `compose.langfuse.yaml`, included by `compose.yaml` (see below); LiteLLM does not send it traces yet (LAB-118).
+Milestones 1.1 and 1.2 (Presidio) are done; 1.3 (Langfuse) is in progress. `compose.yaml` runs LiteLLM Proxy (`litellm-database` image, which applies its Prisma migrations to PostgreSQL at startup), PostgreSQL and two Ollama servers sharing one model volume: `ollama` serves `chat-small` and `embed`, `ollama-large` serves `chat-large`, so stopping it simulates an outage of one model server. A one-shot `ollama-pull` service downloads every model in `OLLAMA_MODELS` before LiteLLM starts. Presidio Analyzer and Anonymizer run in the stack, called by the `pii-fr` guardrail of LiteLLM. Langfuse v4 runs from `compose.langfuse.yaml`, included by `compose.yaml` (see below); LiteLLM traces every call to it, to one project per team.
 
 Routing lives in `config/litellm.yaml`: callers only use usage aliases (`chat-small`, `chat-large`, `embed`), and `chat-large` falls back to `chat-small`. Things learned the hard way, keep them in mind when touching it:
 
@@ -59,6 +59,9 @@ Langfuse (`compose.langfuse.yaml`), things to know:
 - Next.js and the worker listen on the container's hostname, not on localhost, hence `$(hostname)` in their healthchecks.
 - v4 only ingests over OTLP (`/api/public/otel/v1/traces`); `/api/public/ingestion` rejects traces, and `/api/public/traces/{id}` answers 404. Read traces back with `/api/public/v2/observations?traceId=`. In LiteLLM, use the `langfuse_otel` callback, not `langfuse`.
 - S3 storage is SeaweedFS (`langfuse-s3`), not MinIO as in the official file: `weed server -s3` with the key pair in `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, which become its admin identity; the `langfuse` bucket is created on the first upload. `-ip.bind=0.0.0.0` is required, or the S3 API only listens on the container's IP and the healthcheck on 127.0.0.1 fails.
+- Each team of `config/tenants.yaml` with a `langfuse` block gets its own organization, project, API keys and Viewer account, written by `scripts/bootstrap_langfuse.py` directly into Langfuse's PostgreSQL through LiteLLM's Prisma client (the equivalent APIs are Enterprise, ADR-016). It mirrors `web/src/initialize.ts` of the pinned Langfuse version: check its tables and hashes on any Langfuse upgrade. The same script creates the price of each alias in every project from `config/litellm.yaml`; its pattern also matches the model behind the alias (streamed calls and fallbacks carry that name), so two aliases may not serve the same model.
+- A team's traces reach its project through the team's `logging` metadata in LiteLLM (set by `bootstrap_tenants.py`); calls without a team go to Gateway.
+- `turn_off_message_logging: true` is global on purpose: `langfuse_otel` ignores the per-team and per-request switches in LiteLLM 1.83.14, and the guardrail restores real values in the answer before logging. To find a call's trace, send `metadata.generation_name` and filter `/api/public/v2/observations?name=`.
 
 ## Commands
 

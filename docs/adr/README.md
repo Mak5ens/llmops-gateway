@@ -10,3 +10,4 @@ ADR numbers are global to the portfolio, so the numbers here are not consecutive
 | -- | -- | -- |
 | [ADR-014](014-internal-price-for-self-hosted-models.md) | Budget self-hosted models with an internal price per token | Accepted |
 | [ADR-015](015-presidio-marker-fixes.md) | Fix the numbered markers of LiteLLM's Presidio guardrail in a subclass | Accepted |
+| [ADR-016](016-langfuse-project-per-team.md) | One Langfuse organization per team, provisioned in Langfuse's database | Accepted |

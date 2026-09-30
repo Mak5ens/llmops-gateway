@@ -72,7 +72,7 @@ client.chat.completions.create(model="chat-small", messages=[{"role": "user", "c
 client.embeddings.create(model="embed", input="Le locataire a payé son loyer en retard.")
 ```
 
-Langfuse's UI is on `http://localhost:3100`: sign in with `LANGFUSE_ADMIN_EMAIL` and `LANGFUSE_ADMIN_PASSWORD` from `.env` (see [Tracing with Langfuse](#tracing-with-langfuse)). To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `just hooks`, and run `just lint`. Run `just` alone to list every recipe.
+Langfuse's UI is on `http://localhost:3100`: sign in with `LANGFUSE_ADMIN_EMAIL` and `LANGFUSE_ADMIN_PASSWORD` from `.env`, or as a team lead (see [Tracing with Langfuse](#tracing-with-langfuse)). To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `just hooks`, and run `just lint`. Run `just` alone to list every recipe.
 
 ## Models and routing
 
@@ -245,7 +245,7 @@ It starts in about 6 seconds once the image is built, and analyzes a 30-word Fre
 
 ## Tracing with Langfuse
 
-[Langfuse](https://langfuse.com/) v4.47.0 runs in the stack, self-hosted: traces hold prompts and answers, so they stay on the machine. [`compose.langfuse.yaml`](compose.langfuse.yaml), included by `compose.yaml`, starts from the [official Docker Compose file](https://github.com/langfuse/langfuse/blob/main/docker-compose.yml) with every version pinned, secrets required from `.env`, telemetry to Langfuse turned off, only the UI and the S3 API published, on `127.0.0.1`, and SeaweedFS instead of MinIO for S3 storage.
+[Langfuse](https://langfuse.com/) v4.47.0 runs in the stack, self-hosted: traces say which team called which alias, when and for how much, so they stay on the machine. [`compose.langfuse.yaml`](compose.langfuse.yaml), included by `compose.yaml`, starts from the [official Docker Compose file](https://github.com/langfuse/langfuse/blob/main/docker-compose.yml) with every version pinned, secrets required from `.env`, telemetry to Langfuse turned off, only the UI and the S3 API published, on `127.0.0.1`, and SeaweedFS instead of MinIO for S3 storage.
 
 | Service | Role |
 | -- | -- |
@@ -256,7 +256,7 @@ It starts in about 6 seconds once the image is built, and analyzes a 30-word Fre
 | `langfuse-redis` | Queue between web and worker |
 | `langfuse-s3` | S3 storage of raw events and media ([SeaweedFS](https://github.com/seaweedfs/seaweedfs)) |
 
-On first start, Langfuse creates an organization, a *Gateway* project with the API keys `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` from `.env`, and the admin account. Sign-up is off, so that account is the only one. Later starts leave them unchanged: changing the keys in `.env` afterwards requires `just gateway-down --volumes`.
+On first start, Langfuse creates an organization, a *Gateway* project with the API keys `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` from `.env`, and the platform admin's account. Sign-up is off: the other accounts are those of the team leads, created by the bootstrap (below). Later starts leave them unchanged: changing the keys in `.env` afterwards requires `just gateway-down --volumes`.
 
 **SeaweedFS rather than MinIO.** The official file uses MinIO, whose community edition is winding down: its admin console was removed in 2025, then its Docker images and binaries, and the repository went into maintenance mode. Langfuse only needs basic S3 (put, get, list, delete, presigned URLs), so any compatible store works:
 
@@ -274,7 +274,44 @@ SeaweedFS peaked at 64 MiB of RAM during the tests, against 85 MiB for MinIO.
 - On Kubernetes they will be two managed databases anyway ([`llmops-platform`](https://github.com/Mak5ens/llmops-platform)); the stack keeps that shape.
 - The cost is 120 MiB of RAM, measured.
 
-Langfuse v4 only takes traces over OpenTelemetry (`/api/public/otel/v1/traces`); its older ingestion API now only accepts scores. LiteLLM will send its traces with its `langfuse_otel` callback in the next step of milestone 1.3.
+Langfuse v4 only takes traces over OpenTelemetry (`/api/public/otel/v1/traces`); its older ingestion API now only accepts scores. LiteLLM sends them with its `langfuse_otel` callback.
+
+### What a trace holds
+
+LiteLLM traces every call, successful or failed (level `ERROR`), a few seconds after it ends:
+
+| Field | Example |
+| -- | -- |
+| Team and key | `user_api_key_team_id: baux`, `user_api_key_team_alias: Lease compliance checker`, `user_api_key_alias: baux-app` |
+| Alias (the model of the trace) | `chat-large`; a streamed call or a fallback shows the model behind it instead, `qwen2.5:1.5b` |
+| Tokens | `input: 36, output: 3` |
+| Cost | `$0.000045`, the internal price of the alias (ADR-014): the same amount LiteLLM charged the team's budget and returned in `x-litellm-response-cost` |
+| Latency | `0.87 s` |
+| What the guardrail masked | `masked_entity_count: {PERSON: 2, FR_ADDRESS: 1, IBAN_CODE: 1, PHONE_NUMBER: 1}`, types and positions only |
+| Messages | `redacted-by-litellm` |
+
+**No messages in the traces.** The `pii-fr` guardrail puts the real values back into the answer before LiteLLM logs it, so the first trace of a lease held `Bonjour Marie Dupont` in clear. And a team that opted out of masking can still send personal data. `turn_off_message_logging` in `config/litellm.yaml` removes the prompts and answers from every trace. LiteLLM's switch per team or per request is ignored by `langfuse_otel` in 1.83.14, so the setting is global. A caller can still name its calls with `metadata.generation_name` and group them with `metadata.session_id`.
+
+**Cost.** Langfuse prices the tokens itself, from a price per alias in each project. `scripts/bootstrap_langfuse.py` creates those prices from the internal prices of `config/litellm.yaml`, so a price changes in one place: edit the file, then run `just gateway-reload` and `just tenants`. Each price also matches the model behind its alias, which streamed and fallback calls carry. After the whole test suite, the cost summed per project in Langfuse matched each team's spend in LiteLLM to the last digit ($0.00022764 for `baux`).
+
+### One project per team
+
+Each client team has its own organization and project in Langfuse, and LiteLLM sends the team's traces there. Calls made without a team key (the master key) go to the Gateway project.
+
+| Account | Sees | Role |
+| -- | -- | -- |
+| `LANGFUSE_ADMIN_EMAIL` (platform team) | Gateway and every team's project | Owner |
+| `f1-lead@llmops.local`, `mj-lead@llmops.local`, `baux-lead@llmops.local` | Its team's project only | Viewer |
+
+A team lead signs in with the password `LANGFUSE_VIEWER_PASSWORD_<TEAM>` from `.env`. They see their team's calls, costs per day and per alias, latency and errors. They do not see the gateway's keys and budgets, which stay in LiteLLM with the platform team.
+
+The `langfuse` block of each team in [`config/tenants.yaml`](config/tenants.yaml) declares it. `just gateway-up` and `just tenants` apply it:
+
+- the organization, the project, its API keys and the lead's account, in Langfuse's database;
+- the prices of the aliases, in every project;
+- in LiteLLM, the team's metadata, which points its traces to its project with a reference to its secret key (`os.environ/LANGFUSE_SECRET_KEY_<TEAM>`). The key itself does not go into LiteLLM's database.
+
+Why an organization per team, and why the bootstrap writes to Langfuse's database: Langfuse's project roles and its admin API for organizations, projects and keys are Enterprise features. The bootstrap writes the same rows as Langfuse's own `LANGFUSE_INIT_*` variables. See [ADR-016](docs/adr/016-langfuse-project-per-team.md).
 
 ## Tests
 
@@ -287,6 +324,7 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 | `test_pii_guardrail.py` | The prompt reaches the model with markers only, the answer (streamed or not) comes back with the real values, two people in two messages get two markers, `f1` is not masked unless it asks, `baux` cannot opt out from the request |
 | `test_presidio.py` | The Analyzer finds every French identifier in a lease, context words raise the scores, no identifier comes out of ordinary numbers (amounts, dates, lap numbers), English still works; the Anonymizer replaces what was found |
 | `test_langfuse.py` | The UI answers, the Gateway project and its keys exist from the first start, a wrong key is refused, the admin can sign in and nobody can sign up, a span sent over OTLP is read back after going through S3, Redis, the worker and ClickHouse |
+| `test_tracing.py` | A call of each team (each alias) reaches its team's project and no other, with its team, key, alias, tokens, latency and the cost LiteLLM charged; a call without a team reaches Gateway; a failed call is traced as an error; a masked lease leaves no personal data in its trace; each lead sees their team's project only, as a viewer; a second bootstrap duplicates nothing |
 | `test_fallback.py` | With `ollama-large` stopped, `chat-large` is served by `chat-small` within 30 s and the logs show the fallback |
 
 [`tests/unit/`](tests/unit/) runs without the stack (`just test-unit`, 235 cases in about 2 s): each recognizer, as configured in `recognizers.yaml`, on at least 10 valid cases and on known false positives and edge cases; the marker fixes of `presidio_markers.py` against the pinned LiteLLM version; and the benchmark dataset (annotations, check digits, same file from the generator). The valid NIRs, tax numbers and IBANs were checked with [python-stdnum](https://arthurdejong.org/python-stdnum/).
