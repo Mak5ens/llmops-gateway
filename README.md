@@ -5,7 +5,7 @@
 
 **One gateway for every LLM call in the company: per-team keys and budgets, French PII anonymized before inference, every call traced and priced.**
 
-> Status: under construction. Milestone 1.1 (local gateway) is done: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. Milestone 1.2 (Presidio anonymization) is done: French personal data is masked before the model and put back into the answer, per team, with 93.9 % of it fully masked on a 100-text benchmark. See the [roadmap](#roadmap).
+> Status: under construction. Milestone 1.1 (local gateway) is done: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. Milestone 1.2 (Presidio anonymization) is done: French personal data is masked before the model and put back into the answer, per team, with 99.2 % of it fully masked on a 100-text benchmark. See the [roadmap](#roadmap).
 
 ## Why
 
@@ -171,16 +171,18 @@ The choice holds for that call only. A team that always wants masking switches t
 
 | Detector | Precision | Recall | Fully masked | Latency p50 per text | Internal price per 1,000 texts |
 | -- | -- | -- | -- | -- | -- |
-| Presidio (this gateway) | 86.5 % | 94.7 % | 93.9 % | 9 ms | no model call |
-| qwen2.5:0.5b | 46.9 % | 9.1 % | 16.9 % | 541 ms | $0.08 |
+| Presidio (this gateway) | 88.1 % | 99.0 % | 99.2 % | 9 ms | no model call |
+| qwen2.5:0.5b | 46.9 % | 9.1 % | 16.9 % | 538 ms | $0.08 |
 | qwen2.5:1.5b | 77.2 % | 36.0 % | 40.2 % | 1.6 s | $0.40 |
-| qwen2.5:7b | 91.4 % | 79.3 % | 83.1 % | 8.9 s | – |
+| qwen2.5:7b | 91.1 % | 78.9 % | 82.7 % | 8.2 s | – |
 
 *Fully masked* is the share of items with no character left in clear, whatever the type found: it is what keeps the data from the model.
 
-**Does detecting personal data need a big model?** No. Presidio, with a spaCy model and rules, masks more than qwen2.5:7b (93.9 % against 83.1 %) about 1,000 times faster, and never invents or rewrites a value. Small LLMs are not an option at all: the 0.5b model masks 17 % of the items. Even the 7b model loses on structured identifiers, where rules and checksums are exact: it recopies IBANs without their spaces, so only 47 % of them could be found in the text, against 100 % for Presidio. Where it does well is names (80 % recall, 99 % precision), close to Presidio's spaCy model (91 %, 81 %).
+**Does detecting personal data need a big model?** No. Presidio, with a spaCy model and rules, masks more than qwen2.5:7b (99.2 % against 82.7 %) about 900 times faster, and never invents or rewrites a value. Small LLMs are not an option at all: the 0.5b model masks 17 % of the items. Even the 7b model loses on structured identifiers, where rules and checksums are exact: it recopies IBANs without their spaces, so only 47 % of them could be found in the text, against 100 % for Presidio. Where it does well is names: 80 % recall with 99 % precision, against 99 % recall and 82 % precision for Presidio.
 
-**Where Presidio leaks** (31 items out of 508, listed in the results): first names alone and full names alone on a line, which spaCy misses without context; addresses split over two lines, whose postcode and city stay in clear; and Mastercard numbers of the 2xxx range, which Presidio's card recognizer does not know. The guardrail adds 10 ms per request (p50, 14.6 ms instead of 4.6 ms). These leaks are tracked in LAB-156.
+**Where Presidio leaks** (4 items out of 508, listed in the results): a first name too rare for the INSEE list (*Alexandrie*) and city names without context. The first run left 31 items in clear: names without context, which spaCy misses; addresses split over two lines; and Mastercard numbers of the 2xxx range, which Presidio's card recognizer does not know. `FrPersonRecognizer`, `CardRecognizer` and a fix to `FrAddressRecognizer` took fully masked items from 93.9 % to 99.2 %, and precision from 86.5 % to 88.1 %. On a held-out set generated with another seed, never used to tune the rules, the same changes took them from 94.1 % to 99.4 % (both sets come from the same templates: this checks new names and numbers, not new kinds of text).
+
+The guardrail adds 10 ms per request (p50, 14.8 ms instead of 4.8 ms).
 
 ### Presidio services
 
@@ -212,13 +214,15 @@ A pattern alone is not enough when a check digit exists: a match whose key is wr
 | -- | -- | -- | -- |
 | `FR_NIR` | `FrNirRecognizer` | Social security number, with or without spaces, Corsica (2A, 2B) and overseas included | Structure (sex, month) and the key: 97 - (13 digits mod 97) |
 | `FR_FISCAL_NUMBER` | `FrFiscalNumberRecognizer` | 13-digit tax number (SPI) | First digit 0 to 3, last 3 digits = first 10 mod 511 |
-| `FR_ADDRESS` | `FrAddressRecognizer` | Number, street type (rue, avenue, bd...), capitalized name, then optional postcode and city | No checksum exists: street type and capital letters; score 0.6, raised by context |
+| `FR_ADDRESS` | `FrAddressRecognizer` | Number, street type (rue, avenue, bd...), capitalized name, then optional postcode and city, on the same line or the next | No checksum exists: street type and capital letters; score 0.6, raised by context |
 | `PHONE_NUMBER` | `FrPhoneRecognizer` | Mobile and landline, spaces, dots or dashes, `+33`, `0033`, `(0)` | Validation by the [phonenumbers](https://github.com/daviddrysdale/python-phonenumbers) library, region FR |
+| `PERSON` | `FrPersonRecognizer`, next to spaCy | Names after a title (*M.*, *Docteur*) or a form field (*Nom :*), alone on a line (letter header, signature), or starting with one of the 5,114 first names given to at least 500 children in France since 1900 ([INSEE](https://www.insee.fr/fr/statistiques/7633685)) | A first name alone scores 0.3, under the guardrail threshold, until a context word (*salut*, *mon fils*, *prénom*) raises it |
 | `IBAN_CODE` | Presidio's `IbanRecognizer` | IBANs of every country, French context words added | Check digits (mod 97) |
+| `CREDIT_CARD` | `CardRecognizer` | Presidio's card recognizer plus the Mastercard 2-series (2221 to 2720), which it misses | Luhn check digit |
 | `URL` | `UrlOutsideEmailRecognizer` | Presidio's URL recognizer | No longer reports the domain of an email address |
 
 Context words raise a score when they appear in the 5 words before a match: in a lease, *domiciliée 12 rue de la Paix, 75002 Paris* scores 0.95 instead of 0.6, and *joignable au 06 12 34 56 78* 0.75 instead of 0.4.
-The spaCy model still makes mistakes of its own, measured in the [benchmark](#how-well-it-works): it misses names without context and sometimes labels an email or `FR76` as a place. French dates (*12 mars 1985*) are not detected either; the guardrail does not mask dates anyway.
+The spaCy model still makes mistakes of its own, measured in the [benchmark](#how-well-it-works): it misses city names without context and sometimes labels an email or `FR76` as a place. French dates (*12 mars 1985*) are not detected either; the guardrail does not mask dates anyway.
 
 Memory of the Analyzer, measured with `docker stats` after 30 requests:
 

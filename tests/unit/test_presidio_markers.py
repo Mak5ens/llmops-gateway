@@ -46,6 +46,12 @@ def test_same_span_keeps_the_highest_score():
     ]
 
 
+def test_a_tie_gives_the_same_type_in_any_order():
+    # A 13-digit tax number starting with 3 can also pass the card checksum: same span, same score.
+    card, tax = detection("CREDIT_CARD", 0, 13, 1.0), detection("FR_FISCAL_NUMBER", 0, 13, 1.0)
+    assert merge_overlaps([card, tax]) == merge_overlaps([tax, card]) == [tax]
+
+
 def test_adjacent_detections_stay_apart():
     merged = merge_overlaps([detection("PERSON", 5, 10), detection("PERSON", 0, 5)])
     assert merged == [detection("PERSON", 0, 5), detection("PERSON", 5, 10)]

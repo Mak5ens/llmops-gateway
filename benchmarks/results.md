@@ -9,10 +9,10 @@ Presidio runs as the `pii-fr` guardrail does: the 11 entity types of `config/lit
 
 | Detector | Precision | Recall | F1 | Fully masked | Latency p50 / p95 per text | Internal price per 1,000 texts |
 | -- | -- | -- | -- | -- | -- | -- |
-| Presidio | 86.5 % | 94.7 % | 90.4 % | 93.9 % | 9 ms / 14 ms | no model call |
-| qwen2.5:0.5b | 46.9 % | 9.1 % | 15.2 % | 16.9 % | 541 ms / 7,010 ms | $0.08 (`chat-small` rate) |
-| qwen2.5:1.5b | 77.2 % | 36.0 % | 49.1 % | 40.2 % | 1,639 ms / 15,585 ms | $0.40 (`chat-large` rate) |
-| qwen2.5:7b | 91.4 % | 79.3 % | 84.9 % | 83.1 % | 8,878 ms / 15,345 ms | no internal price (not a gateway alias) |
+| Presidio | 88.1 % | 99.0 % | 93.2 % | 99.2 % | 9 ms / 13 ms | no model call |
+| qwen2.5:0.5b | 46.9 % | 9.1 % | 15.2 % | 16.9 % | 538 ms / 6,886 ms | $0.08 (`chat-small` rate) |
+| qwen2.5:1.5b | 77.2 % | 36.0 % | 49.1 % | 40.2 % | 1,592 ms / 15,271 ms | $0.40 (`chat-large` rate) |
+| qwen2.5:7b | 91.1 % | 78.9 % | 84.6 % | 82.7 % | 8,239 ms / 12,633 ms | no internal price (not a gateway alias) |
 
 - **Precision / recall**: a detected span counts when it overlaps an annotated item of the same type.
 - **Fully masked**: share of annotated items with no character left in clear, whatever the type detected. This is what protects the data: an address masked as a LOCATION still reaches the model as a marker.
@@ -24,16 +24,16 @@ Presidio runs as the `pii-fr` guardrail does: the 11 entity types of `config/lit
 
 | Type | Items | Presidio | qwen2.5:0.5b | qwen2.5:1.5b | qwen2.5:7b |
 | -- | -- | -- | -- | -- | -- |
-| `PERSON` | 201 | 91 % / 81 % | 14 % / 100 % | 30 % / 88 % | 80 % / 99 % |
-| `LOCATION` | 51 | 96 % / 62 % | 0 % / 0 % | 20 % / 50 % | 63 % / 84 % |
-| `FR_ADDRESS` | 74 | 99 % / 100 % | 14 % / 29 % | 38 % / 68 % | 77 % / 98 % |
+| `PERSON` | 201 | 99 % / 82 % | 14 % / 100 % | 30 % / 88 % | 80 % / 99 % |
+| `LOCATION` | 51 | 96 % / 66 % | 0 % / 0 % | 20 % / 50 % | 63 % / 84 % |
+| `FR_ADDRESS` | 74 | 100 % / 100 % | 14 % / 29 % | 38 % / 68 % | 77 % / 98 % |
 | `EMAIL_ADDRESS` | 35 | 100 % / 100 % | 3 % / 100 % | 100 % / 88 % | 100 % / 100 % |
 | `PHONE_NUMBER` | 61 | 100 % / 100 % | 7 % / 100 % | 33 % / 80 % | 100 % / 88 % |
-| `IBAN_CODE` | 30 | 100 % / 100 % | 7 % / 22 % | 0 % / – | 47 % / 100 % |
-| `CREDIT_CARD` | 10 | 60 % / 86 % | 10 % / 5 % | 0 % / 0 % | 80 % / 73 % |
+| `IBAN_CODE` | 30 | 100 % / 100 % | 7 % / 22 % | 0 % / – | 40 % / 100 % |
+| `CREDIT_CARD` | 10 | 100 % / 100 % | 10 % / 5 % | 0 % / 0 % | 80 % / 73 % |
 | `IP_ADDRESS` | 6 | 100 % / 100 % | 0 % / – | 50 % / 100 % | 83 % / 100 % |
-| `FR_NIR` | 30 | 97 % / 100 % | 0 % / – | 80 % / 83 % | 67 % / 91 % |
-| `FR_FISCAL_NUMBER` | 10 | 100 % / 100 % | 0 % / – | 30 % / 100 % | 100 % / 37 % |
+| `FR_NIR` | 30 | 100 % / 100 % | 0 % / – | 80 % / 83 % | 67 % / 91 % |
+| `FR_FISCAL_NUMBER` | 10 | 100 % / 100 % | 0 % / – | 30 % / 100 % | 100 % / 36 % |
 
 ## Latency added by the guardrail
 
@@ -41,44 +41,17 @@ Gateway round trip for each text of the dataset, 3 rounds, with a mock answer (`
 
 | Team | p50 | p95 |
 | -- | -- | -- |
-| Without guardrail (opted out) | 4.6 ms | 6.7 ms |
-| With `pii-fr` | 14.6 ms | 18.0 ms |
-| Difference | +10.0 ms | +11.3 ms |
+| Without guardrail (opted out) | 4.8 ms | 5.6 ms |
+| With `pii-fr` | 14.8 ms | 18.5 ms |
+| Difference | +10.1 ms | +12.9 ms |
 
-The Analyzer alone takes 8.8 ms (p50) and 14.2 ms (p95) per text; the guardrail also calls the Anonymizer and analyzes each message separately.
+The Analyzer alone takes 8.6 ms (p50) and 13.1 ms (p95) per text; the guardrail also calls the Anonymizer and analyzes each message separately.
 
-## What Presidio left in clear (31 items)
+## What Presidio left in clear (4 items)
 
 | Text | Type | Value |
 | -- | -- | -- |
-| tenant_letter-0 | `PERSON` | Lucy Petit |
-| tenant_letter-4 | `PERSON` | Julien Renault |
-| tenant_letter-6 | `PERSON` | Roland Dufour |
-| tenant_letter-7 | `PERSON` | Julien Pages |
-| complaint_email-5 | `PERSON` | Émilie Georges |
-| complaint_email-6 | `CREDIT_CARD` | 2504947677811852 |
-| complaint_email-7 | `CREDIT_CARD` | 2288 6305 6008 4678 |
-| complaint_email-8 | `CREDIT_CARD` | 2705 6170 4998 9739 |
-| complaint_email-9 | `CREDIT_CARD` | 2720 2012 7716 8687 |
-| short_message-0 | `PERSON` | Anaïs |
-| tax_letter-0 | `FR_ADDRESS` | 92 rue du Général Briand 14000 Caen |
-| tax_letter-1 | `FR_ADDRESS` | 24 chemin Voltaire 63000 Clermont-Ferrand |
-| tax_letter-2 | `FR_ADDRESS` | 53 bis, quai Pineau 76600 Le Havre |
-| tax_letter-4 | `FR_ADDRESS` | 31 rue des Lilas 29200 Brest |
-| tax_letter-5 | `FR_ADDRESS` | 156, quai du Général Traore 80000 Amiens |
-| tax_letter-6 | `FR_ADDRESS` | 120, quai de la Paix 62200 Boulogne-sur-Mer |
 | tax_letter-7 | `PERSON` | Alexandrie Toussaint |
-| tax_letter-7 | `FR_ADDRESS` | 160, impasse du Général Langlois 35000 Rennes |
 | tax_letter-7 | `PERSON` | Alexandrie Toussaint |
-| tax_letter-8 | `FR_ADDRESS` | 178, allée Cordier 30000 Nîmes |
 | tax_letter-8 | `LOCATION` | Paris |
-| tax_letter-9 | `FR_ADDRESS` | 59 bis allée du Général Arnaud 76000 Rouen |
-| refund_request-5 | `PERSON` | Marine |
-| refund_request-7 | `PERSON` | Olivier |
-| appointment_request-2 | `PERSON` | Étienne |
-| appointment_request-2 | `PERSON` | Nicolas |
 | appointment_request-2 | `LOCATION` | Caen |
-| appointment_request-3 | `PERSON` | Camus |
-| appointment_request-6 | `PERSON` | André |
-| appointment_request-8 | `PERSON` | Noël |
-| rent_reminder-6 | `PERSON` | Lucas Salmon |
