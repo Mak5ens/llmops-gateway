@@ -15,7 +15,7 @@ lint:
 
 # Start LiteLLM, PostgreSQL, Ollama and Presidio, wait until they are healthy, then create the client teams and keys
 gateway-up: _env
-    docker compose up --detach --wait
+    docker compose up --detach --wait --build
     docker compose run --rm --no-deps tenants-bootstrap
     @echo "Gateway ready on http://localhost:${LITELLM_PORT:-4000} (try: just smoke)"
 
@@ -38,11 +38,15 @@ gateway-logs:
 
 # Call every alias with a team key: a quick check after `just gateway-reload`
 smoke: _env
-    uv run pytest tests/test_routing.py
+    uv run pytest tests/integration/test_routing.py
 
-# Run the integration tests (starts the stack if needed); pass pytest arguments, e.g. `just test -k budget`
+# Run every test (starts the stack if needed); pass pytest arguments, e.g. `just test -k budget`
 test *args: _env
     uv run pytest {{ args }}
+
+# Run the unit tests of the Presidio recognizers: no stack, a few seconds
+test-unit *args:
+    uv run pytest tests/unit {{ args }}
 
 [private]
 _env:

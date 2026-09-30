@@ -38,9 +38,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  unit-tests:
+    # The Presidio recognizers against their test cases, without the stack: fails in seconds, not minutes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: extractions/setup-just@v4
+      - run: just test-unit
+
   gateway-integration:
     # Starts the whole stack on a clean runner, then runs the pytest suite: every alias, access per team,
-    # rate limit, budget, and the chat-large fallback. Breaking any of these in config/ turns the job red.
+    # rate limit, budget, the chat-large fallback and Presidio. Breaking any of these in config/ turns the job red.
     runs-on: ubuntu-latest
     # Acceptance criterion of LAB-112: the job stays under 10 minutes.
     timeout-minutes: 10
