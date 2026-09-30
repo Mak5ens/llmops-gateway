@@ -69,6 +69,14 @@ services:
       LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?set in .env}
       # INFO shows retries, fallbacks and cooldowns in the logs.
       LITELLM_LOG: INFO
+      # Traces go to Langfuse (callbacks in config/litellm.yaml): to the Gateway project with these keys, and to the
+      # team's own project for a team key, with the team's secret key below (config/tenants.yaml).
+      LANGFUSE_HOST: http://langfuse-web:3000
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_SECRET_KEY_F1: ${LANGFUSE_SECRET_KEY_F1:?set in .env}
+      LANGFUSE_SECRET_KEY_MJ: ${LANGFUSE_SECRET_KEY_MJ:?set in .env}
+      LANGFUSE_SECRET_KEY_BAUX: ${LANGFUSE_SECRET_KEY_BAUX:?set in .env}
     volumes:
       - ./config/litellm.yaml:/app/config.yaml:ro
       # Custom guardrail classes are loaded from the directory of the config file.
@@ -148,9 +156,25 @@ services:
       TEAM_KEY_F1: ${TEAM_KEY_F1:?set in .env}
       TEAM_KEY_MJ: ${TEAM_KEY_MJ:?set in .env}
       TEAM_KEY_BAUX: ${TEAM_KEY_BAUX:?set in .env}
+      # Langfuse organizations, projects and accounts of the teams: scripts/bootstrap_langfuse.py.
+      LANGFUSE_URL: http://langfuse-web:3000
+      LANGFUSE_DATABASE_URL: postgresql://langfuse:${LANGFUSE_POSTGRES_PASSWORD}@langfuse-postgres:5432/langfuse
+      LANGFUSE_SALT: ${LANGFUSE_SALT}
+      LANGFUSE_ADMIN_EMAIL: ${LANGFUSE_ADMIN_EMAIL}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      LANGFUSE_SECRET_KEY_F1: ${LANGFUSE_SECRET_KEY_F1}
+      LANGFUSE_SECRET_KEY_MJ: ${LANGFUSE_SECRET_KEY_MJ}
+      LANGFUSE_SECRET_KEY_BAUX: ${LANGFUSE_SECRET_KEY_BAUX}
+      LANGFUSE_VIEWER_PASSWORD_F1: ${LANGFUSE_VIEWER_PASSWORD_F1:?set in .env}
+      LANGFUSE_VIEWER_PASSWORD_MJ: ${LANGFUSE_VIEWER_PASSWORD_MJ:?set in .env}
+      LANGFUSE_VIEWER_PASSWORD_BAUX: ${LANGFUSE_VIEWER_PASSWORD_BAUX:?set in .env}
+      LITELLM_CONFIG: /config/litellm.yaml
     volumes:
       - ./config/tenants.yaml:/config/tenants.yaml:ro
+      - ./config/litellm.yaml:/config/litellm.yaml:ro
       - ./scripts/bootstrap_tenants.py:/scripts/bootstrap_tenants.py:ro
+      - ./scripts/bootstrap_langfuse.py:/scripts/bootstrap_langfuse.py:ro
     depends_on:
       litellm:
         condition: service_healthy

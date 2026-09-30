@@ -7,7 +7,7 @@ from collections.abc import Iterator
 
 import httpx
 import pytest
-from helpers import LANGFUSE_ADMIN, LANGFUSE_KEYS, LANGFUSE_URL
+from helpers import LANGFUSE_ADMIN, LANGFUSE_KEYS, LANGFUSE_URL, langfuse_session
 
 
 @pytest.fixture(scope="module")
@@ -15,15 +15,6 @@ def langfuse() -> Iterator[httpx.Client]:
     """Client of Langfuse's public API, authenticated with the keys of the Gateway project."""
     with httpx.Client(base_url=LANGFUSE_URL, auth=LANGFUSE_KEYS, timeout=30) as client:
         yield client
-
-
-def sign_in(password: str) -> dict:
-    """Sign in to the UI as the admin and return the session (empty when refused)."""
-    with httpx.Client(base_url=LANGFUSE_URL, timeout=30) as client:
-        csrf = client.get("/api/auth/csrf").json()["csrfToken"]
-        form = {"email": LANGFUSE_ADMIN[0], "password": password, "csrfToken": csrf, "json": "true"}
-        client.post("/api/auth/callback/credentials", data=form)
-        return client.get("/api/auth/session").json()
 
 
 def test_the_ui_answers():
@@ -42,9 +33,9 @@ def test_a_wrong_secret_key_is_refused():
 
 
 def test_the_admin_can_sign_in():
-    session = sign_in(LANGFUSE_ADMIN[1])
+    session = langfuse_session(*LANGFUSE_ADMIN)
     assert session["user"]["email"] == LANGFUSE_ADMIN[0]
-    assert sign_in("wrong-password") == {}
+    assert langfuse_session(LANGFUSE_ADMIN[0], "wrong-password") == {}
 
 
 def test_sign_up_is_disabled():

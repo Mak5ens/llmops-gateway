@@ -9,6 +9,10 @@
 # pii_masking: "required" runs the pii-fr guardrail of config/litellm.yaml on every request of the team;
 # "optional" opts the team out of it, and a request then masks personal data only when it asks for
 # the pii-fr-on-request guardrail.
+#
+# langfuse: the team's own organization and project in Langfuse, where LiteLLM sends the team's traces, and a
+# read-only account for the team's lead, who sees the calls and costs of this team and of no other.
+# Applied by scripts/bootstrap_langfuse.py. Secrets (secret key, password) come from .env.
 
 teams:
   # F1 strategy analyst: an agent with RAG over race data, so it needs chat and embeddings.
@@ -25,6 +29,11 @@ teams:
       value_env: TEAM_KEY_F1
       rpm_limit: 60
       tpm_limit: 100000
+    langfuse:
+      public_key: pk-lf-f1
+      secret_key_env: LANGFUSE_SECRET_KEY_F1
+      viewer_email: f1-lead@llmops.local
+      viewer_password_env: LANGFUSE_VIEWER_PASSWORD_F1
 
   # Game master assistant: chat only, and the most bursty traffic (players waiting at the table).
   - team_id: mj
@@ -39,6 +48,11 @@ teams:
       value_env: TEAM_KEY_MJ
       rpm_limit: 30
       tpm_limit: 50000
+    langfuse:
+      public_key: pk-lf-mj
+      secret_key_env: LANGFUSE_SECRET_KEY_MJ
+      viewer_email: mj-lead@llmops.local
+      viewer_password_env: LANGFUSE_VIEWER_PASSWORD_MJ
 
   # Residential lease compliance checker: long documents, quality over speed, RAG over the law.
   - team_id: baux
@@ -53,3 +67,8 @@ teams:
       value_env: TEAM_KEY_BAUX
       rpm_limit: 20
       tpm_limit: 50000
+    langfuse:
+      public_key: pk-lf-baux
+      secret_key_env: LANGFUSE_SECRET_KEY_BAUX
+      viewer_email: baux-lead@llmops.local
+      viewer_password_env: LANGFUSE_VIEWER_PASSWORD_BAUX

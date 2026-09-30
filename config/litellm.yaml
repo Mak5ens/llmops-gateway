@@ -94,6 +94,14 @@ general_settings:
   database_url: os.environ/DATABASE_URL
 
 litellm_settings:
+  # Every call, success or failure, is traced to Langfuse over OTLP (Langfuse v4 takes nothing else). The keys in the
+  # environment point to the Gateway project; a team's metadata points its calls to the team's own project
+  # (scripts/bootstrap_tenants.py). Langfuse prices the tokens with the internal prices above.
+  callbacks: ["langfuse_otel"]
+  # Traces keep the team, key, alias, tokens, cost and latency, never the messages: the pii-fr guardrail puts the real
+  # values back into the answer before LiteLLM logs it, and an opted-out team can still send personal data.
+  # LiteLLM's per-team or per-request switch is ignored by langfuse_otel in 1.83.14, so this one applies to all.
+  turn_off_message_logging: true
   drop_params: true
   # Upper bound for any call, whatever the per-model timeout.
   request_timeout: 60
