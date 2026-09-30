@@ -44,7 +44,7 @@ smoke: _env
 test *args: _env
     uv run pytest {{ args }}
 
-# Run the unit tests of the Presidio recognizers: no stack, a few seconds
+# Run the unit tests of the Presidio recognizers and of the guardrail class: no stack, a few seconds
 test-unit *args:
     uv run pytest tests/unit {{ args }}
 

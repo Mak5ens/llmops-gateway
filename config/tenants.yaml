@@ -5,6 +5,10 @@
 #
 # Budgets are in US dollars, counted with the internal prices set per alias in config/litellm.yaml.
 # budget_duration resets the spend: "30d", "7d", "1h"...
+#
+# pii_masking: "required" runs the pii-fr guardrail of config/litellm.yaml on every request of the team;
+# "optional" opts the team out of it, and a request then masks personal data only when it asks for
+# the pii-fr-on-request guardrail.
 
 teams:
   # F1 strategy analyst: an agent with RAG over race data, so it needs chat and embeddings.
@@ -13,6 +17,8 @@ teams:
     models: [chat-small, chat-large, embed]
     max_budget: 10
     budget_duration: 30d
+    # Race data holds no personal data; masking stays available per request.
+    pii_masking: optional
     key:
       key_alias: f1-app
       # The key value is a secret: it comes from .env locally, from a secret manager on the cluster.
@@ -26,6 +32,8 @@ teams:
     models: [chat-small, chat-large]
     max_budget: 5
     budget_duration: 30d
+    # Characters are fictional, and masking their names would confuse the story.
+    pii_masking: optional
     key:
       key_alias: mj-app
       value_env: TEAM_KEY_MJ
@@ -38,6 +46,8 @@ teams:
     models: [chat-large, embed]
     max_budget: 5
     budget_duration: 30d
+    # Leases name tenants and landlords, with their addresses and bank details.
+    pii_masking: required
     key:
       key_alias: baux-app
       value_env: TEAM_KEY_BAUX

@@ -20,6 +20,8 @@ TENANTS_FILE = os.environ.get("TENANTS_FILE", "config/tenants.yaml")
 
 TEAM_FIELDS = ("team_alias", "models", "max_budget", "budget_duration")
 KEY_FIELDS = ("key_alias", "rpm_limit", "tpm_limit")
+# Guardrail of config/litellm.yaml that runs on every request unless the team opts out of it.
+PII_GUARDRAIL = "pii-fr"
 
 
 def call(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
@@ -55,6 +57,11 @@ def main() -> None:
     for team in teams:
         team_id = team["team_id"]
         team_body = {"team_id": team_id} | {field: team[field] for field in TEAM_FIELDS}
+        if team["pii_masking"] not in ("required", "optional"):
+            sys.exit(f"team {team_id}: pii_masking must be 'required' or 'optional'")
+        # LiteLLM reads the opt-out from the team metadata, which only the admin API can write.
+        opted_out = [PII_GUARDRAIL] if team["pii_masking"] == "optional" else []
+        team_body["metadata"] = {"opted_out_global_guardrails": opted_out}
         ensure(f"team {team_id}", team_id in existing_team_ids, "/team/new", "/team/update", team_body)
 
         key = team["key"]

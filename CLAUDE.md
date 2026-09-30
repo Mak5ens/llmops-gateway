@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project purpose
 
-`llmops-gateway` is block 1 of a portfolio "internal AI platform": the single entry point to every LLM. LiteLLM Proxy handles per-team virtual keys, budgets, rate limiting and routing. A Presidio pre-call hook anonymizes French PII before inference and re-identifies the answer. Self-hosted Langfuse traces every call with its cost per team. Ollama serves models locally; vLLM replaces it once the gateway moves to Kubernetes in the sibling repo `llmops-platform`.
+`llmops-gateway` is block 1 of a portfolio "internal AI platform": the single entry point to every LLM. LiteLLM Proxy handles per-team virtual keys, budgets, rate limiting and routing. A Presidio guardrail anonymizes French PII before inference and re-identifies the answer. Self-hosted Langfuse traces every call with its cost per team. Ollama serves models locally; vLLM replaces it once the gateway moves to Kubernetes in the sibling repo `llmops-platform`.
 
 Planning lives in Linear (team key `LAB`, project "Plateforme IA · Gateway d'entreprise"). The cross-cutting vision document is "Portfolio IA — Vision, architecture et conventions".
 
 ## Current state
 
-Milestone 1.1 is done; milestone 1.2 (Presidio) is in progress. `compose.yaml` runs LiteLLM Proxy (`litellm-database` image, which applies its Prisma migrations to PostgreSQL at startup), PostgreSQL and two Ollama servers sharing one model volume: `ollama` serves `chat-small` and `embed`, `ollama-large` serves `chat-large`, so stopping it simulates an outage of one model server. A one-shot `ollama-pull` service downloads every model in `OLLAMA_MODELS` before LiteLLM starts. Presidio Analyzer and Anonymizer run in the stack but LiteLLM does not call them yet (LAB-115). Langfuse (LAB-117) is not in the stack yet.
+Milestone 1.1 is done; milestone 1.2 (Presidio) is in progress. `compose.yaml` runs LiteLLM Proxy (`litellm-database` image, which applies its Prisma migrations to PostgreSQL at startup), PostgreSQL and two Ollama servers sharing one model volume: `ollama` serves `chat-small` and `embed`, `ollama-large` serves `chat-large`, so stopping it simulates an outage of one model server. A one-shot `ollama-pull` service downloads every model in `OLLAMA_MODELS` before LiteLLM starts. Presidio Analyzer and Anonymizer run in the stack, called by the `pii-fr` guardrail of LiteLLM. Langfuse (LAB-117) is not in the stack yet.
 
 Routing lives in `config/litellm.yaml`: callers only use usage aliases (`chat-small`, `chat-large`, `embed`), and `chat-large` falls back to `chat-small`. Things learned the hard way, keep them in mind when touching it:
 
@@ -39,6 +39,15 @@ Presidio notes:
 - Both Presidio services set `GUNICORN_CMD_ARGS=--no-control-socket`: with the control socket on, gunicorn 25.1.0 forks the worker while a thread logs, and the worker can hang forever before `Booting worker` (gunicorn issue #3529). It happened in CI, not locally. Remove the flag only once the images ship a fixed gunicorn.
 - The image's own healthcheck runs every 30 s; `compose.yaml` overrides it with a 5 s interval so `up --wait` does not stall.
 
+PII guardrail notes (`guardrails:` in `config/litellm.yaml`):
+
+- The class is `guardrails/presidio_markers.py`, a subclass of LiteLLM's Presidio guardrail that only overrides `_finalize_presidio_anonymize_numbered_tokens` (ADR-015: overlapping detections garbled the markers, and each message was numbered from 1). LiteLLM loads `module.Class` guardrails from the directory of its config file, hence the mount next to `/app/config.yaml`. It is a private method: after a LiteLLM bump, bump `litellm` in `pyproject.toml` to the same version and run `just test-unit`.
+- With a custom class, LiteLLM passes every `litellm_params` key to the constructor, and `output_parse_pii` adds the post-call hook that unmasks the answer. The stock `guardrail: presidio` also creates an output masker unless `presidio_filter_scope: input`, which would mask the answer again.
+- Per-team guardrails (`metadata.guardrails` on a team or key) are Enterprise-only (`_premium_user_check`, HTTP 403). The open-source path is `default_on: true` plus `opted_out_global_guardrails` in the team metadata, written by `scripts/bootstrap_tenants.py` from `pii_masking` in `config/tenants.yaml`. An opted-out team cannot trigger `pii-fr` from the request, hence the `pii-fr-on-request` twin with `default_on: false`.
+- Presidio errors fail closed for masked teams (HTTP 500, nothing reaches the model).
+- `mock_response` in the request body runs the guardrail without calling the model: the integration tests use it, and a marker in the mock answer comes back unmasked only if the prompt was masked with it. `POST /guardrails/apply_guardrail` (master key) shows the masked text.
+- To see the exact prompt sent to Ollama, run LiteLLM with `LITELLM_LOG=DEBUG` and look for `POST Request Sent from LiteLLM`; Ollama 0.34.4 does not log prompts, even with `OLLAMA_DEBUG=2`.
+
 Image versions are pinned in `compose.yaml`. When bumping them, keep the healthchecks working: the LiteLLM and Ollama images ship without curl or wget (the Presidio ones have curl), hence `python3` in the LiteLLM healthcheck and `ollama list` for Ollama. PostgreSQL 18 stores data under `/var/lib/postgresql/<major>/`, so the volume is mounted on the parent directory. `just` parses `.env` itself and needs quotes around values with spaces, such as `OLLAMA_MODELS`.
 
 ## Commands
@@ -47,7 +56,7 @@ Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); t
 
 - `just gateway-up`: start the stack, wait until every service is healthy, then create or update the client teams and keys. Creates `.env` from `.env.example` if missing.
 - `just test`: run every pytest test in `tests/` through `uv run` (dependencies in `pyproject.toml`, locked in `uv.lock`). Starts the stack if needed. Extra arguments go to pytest: `just test -k budget`, `just test tests/integration/test_fallback.py`.
-- `just test-unit`: only `tests/unit/`, the recognizer tests; no stack needed, under a second.
+- `just test-unit`: only `tests/unit/`, the recognizer and guardrail class tests; no stack needed, about 2 seconds.
 - `just smoke`: only `tests/integration/test_routing.py`, a quick check that every alias answers after `just gateway-reload`.
 - `just tenants`: apply `config/tenants.yaml` to the running gateway (also run by `just gateway-up`).
 - `just gateway-reload`: restart LiteLLM after a change to `config/litellm.yaml`.
@@ -60,7 +69,7 @@ CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, t
 
 ## Tests
 
-`tests/unit/` tests the Presidio recognizers without Docker: its conftest builds the registry from the real `config/presidio/recognizers.yaml` with the `presidio-analyzer` package, pinned to the image's version (as is `phonenumbers`), and `pytest.ini_options.pythonpath` makes `pii_recognizers` importable. Each recognizer has at least 10 valid cases plus false positives and edge cases; valid NIRs, tax numbers and IBANs were generated and checked with python-stdnum (`uvx --with python-stdnum python`).
+`tests/unit/` tests the Presidio recognizers and the guardrail class without Docker: its conftest builds the registry from the real `config/presidio/recognizers.yaml` with the `presidio-analyzer` package, pinned to the image's version (as are `phonenumbers` and `litellm`), and `pytest.ini_options.pythonpath` makes `pii_recognizers` and `presidio_markers` importable. Each recognizer has at least 10 valid cases plus false positives and edge cases; valid NIRs, tax numbers and IBANs were generated and checked with python-stdnum (`uvx --with python-stdnum python`).
 
 `tests/integration/` runs against the stack. Keep in mind:
 

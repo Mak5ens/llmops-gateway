@@ -1,5 +1,6 @@
 # Only holds the test dependencies: the gateway itself is configuration, plus the recognizers baked into the
-# Presidio Analyzer image (docker/presidio-analyzer/pii_recognizers).
+# Presidio Analyzer image (docker/presidio-analyzer/pii_recognizers) and the guardrail class mounted into LiteLLM
+# (guardrails/).
 # `uv run pytest` installs them in .venv from uv.lock.
 
 [project]
@@ -11,6 +12,8 @@ dependencies = []
 [dependency-groups]
 dev = [
     "httpx>=0.28",
+    # Same version as the LiteLLM image, whose Presidio guardrail guardrails/presidio_markers.py extends.
+    "litellm==1.83.14",
     "openai>=2",
     # Same version as the Analyzer image, so the unit tests run the recognizers on the code they run on in the stack.
     "presidio-analyzer==2.2.362",
@@ -24,8 +27,8 @@ package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Lets the unit tests import pii_recognizers from the Analyzer image's build context.
-pythonpath = ["docker/presidio-analyzer"]
+# Lets the unit tests import pii_recognizers from the Analyzer image's build context, and presidio_markers.
+pythonpath = ["docker/presidio-analyzer", "guardrails"]
 addopts = "-v -ra"
 markers = [
     "disruptive: stops a container of the stack; runs after every other test",

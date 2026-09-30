@@ -65,6 +65,8 @@ services:
       LITELLM_LOG: INFO
     volumes:
       - ./config/litellm.yaml:/app/config.yaml:ro
+      # Custom guardrail classes are loaded from the directory of the config file.
+      - ./guardrails/presidio_markers.py:/app/presidio_markers.py:ro
     ports:
       - 127.0.0.1:${LITELLM_PORT:-4000}:4000
     depends_on:
@@ -72,6 +74,11 @@ services:
         condition: service_healthy
       ollama-pull:
         condition: service_completed_successfully
+      # The pii-fr guardrail calls both on every request of a team that has not opted out.
+      presidio-analyzer:
+        condition: service_healthy
+      presidio-anonymizer:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"]
       interval: 10s
