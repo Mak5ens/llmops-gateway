@@ -5,9 +5,11 @@ valid check digits, as real ones would: NIR key, tax number mod 511, IBAN mod 97
 Texts also hold data that is not personal (dates, amounts, file numbers, company names and SIRET), so that
 detectors can be wrong in both directions.
 
-Run with `uv run python benchmarks/generate_dataset.py`; the same seed gives the same file.
+Run with `uv run python benchmarks/generate_dataset.py`; the same seed gives the same file. `--seed` and `--output`
+generate a held-out set, to check that a change to the recognizers helps beyond the texts it was tuned on.
 """
 
+import argparse
 import json
 import random
 from collections.abc import Callable
@@ -22,8 +24,7 @@ TEXTS_PER_KIND = 10
 OUTPUT = Path(__file__).with_name("dataset.jsonl")
 
 fake = Faker("fr_FR")
-Faker.seed(SEED)
-rng = random.Random(SEED)
+rng = random.Random()
 
 # Public data: real communes and one of their postcodes.
 CITIES = [
@@ -325,13 +326,20 @@ def render(segments: list[Segment]) -> tuple[str, list[dict]]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--seed", type=int, default=SEED)
+    parser.add_argument("--output", type=Path, default=OUTPUT)
+    args = parser.parse_args()
+    Faker.seed(args.seed)
+    rng.seed(args.seed)
+
     lines = []
     for kind, template in KINDS.items():
         for i in range(TEXTS_PER_KIND):
             text, entities = render(template())
             lines.append(json.dumps({"id": f"{kind}-{i}", "kind": kind, "text": text, "entities": entities}, ensure_ascii=False))
-    OUTPUT.write_text("\n".join(lines) + "\n")
-    print(f"{len(lines)} texts written to {OUTPUT}")
+    args.output.write_text("\n".join(lines) + "\n")
+    print(f"{len(lines)} texts written to {args.output}")
 
 
 if __name__ == "__main__":

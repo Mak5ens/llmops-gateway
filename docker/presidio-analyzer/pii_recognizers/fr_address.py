@@ -25,7 +25,8 @@ class FrAddressRecognizer(PatternRecognizer):
     """
 
     PATTERNS = [
-        Pattern("street address", rf"\b{_NUMBER} ?{_STREET_TYPE} {_STREET_NAME}(?:,? {_POSTCODE} {_CITY})?", 0.6),
+        # Postcode and city on the same line or on the next one, as in the address block of a letter.
+        Pattern("street address", rf"\b{_NUMBER} ?{_STREET_TYPE} {_STREET_NAME}(?:,? ?\n?{_POSTCODE} {_CITY})?", 0.6),
         Pattern("postcode and city", rf"\b{_POSTCODE} {_CITY}", 0.3),
     ]
     CONTEXT = ["adresse", "domicil", "demeur", "habit", "postal", "situé", "résid"]

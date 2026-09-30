@@ -35,6 +35,8 @@ Presidio notes:
 - The YAML loader silently drops constructor arguments it does not know, such as `PhoneRecognizer`'s `supported_regions`: set such arguments in a subclass (`FrPhoneRecognizer`), and check the result in a unit test.
 - `global_regex_flags: 26` includes IGNORECASE for every pattern; `FrAddressRecognizer` uses `(?-i:...)` where a capital letter matters.
 - Context words are matched as substrings of the lemmas of the 5 words before a match, so use single words or stems (`domicil`, `joign`), not phrases.
+- A recognizer that is not a `PatternRecognizer` (`FrPersonRecognizer` subclasses `LocalRecognizer`) must give each result an `analysis_explanation` and the `recognition_metadata` name and identifier keys: the Analyzer's context enhancer uses both, and without the explanation `/analyze` answers 500 (`'NoneType' object has no attribute 'set_supportive_context_word'`). Unit tests call `analyze()` directly and do not catch it.
+- `FrPersonRecognizer` reads `pii_recognizers/data/fr_first_names.txt`, built from INSEE's first names file by `scripts/build_first_names.py` (pinned URL and SHA-256). A first name alone scores 0.3, under the guardrail threshold, and only context words raise it.
 - RAM measured at 1.6 GiB with the French and English models (1.0 GiB with French only), hence `mem_limit: 2g`.
 - Both Presidio services set `GUNICORN_CMD_ARGS=--no-control-socket`: with the control socket on, gunicorn 25.1.0 forks the worker while a thread logs, and the worker can hang forever before `Booting worker` (gunicorn issue #3529). It happened in CI, not locally. Remove the flag only once the images ship a fixed gunicorn.
 - The image's own healthcheck runs every 30 s; `compose.yaml` overrides it with a 5 s interval so `up --wait` does not stall.
@@ -73,6 +75,8 @@ CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, t
 `benchmarks/generate_dataset.py` writes `benchmarks/dataset.jsonl` (100 French texts, fixed seed, committed); `tests/unit/test_dataset.py` checks that it still matches the generator, that annotations point at their values and that identifiers have valid check digits. Faker's relative dates (`-3y`, `date_of_birth`) depend on the current day, so the generator uses fixed bounds: keep it that way, or the file changes every day.
 
 `benchmarks/run_bench.py` reads the entities and threshold of `pii-fr` from `config/litellm.yaml`, runs Presidio as the guardrail does (with `merge_overlaps` from `guardrails/presidio_markers.py`), asks each Ollama model for the same entities in JSON, and measures the gateway with and without the guardrail on `mock_response`. It queries Ollama directly on `OLLAMA_PORT` (11435, since a local Ollama install usually holds 11434) and pulls `qwen2.5:7b` into the model volume on first run; that model is not in `OLLAMA_MODELS`. `results.md` is generated: rerun, never edit. Avoid other heavy work while it runs, it skews the latencies.
+
+When changing a recognizer because of the benchmark, also measure on a held-out set, or the rules end up tuned to `dataset.jsonl`: `uv run python benchmarks/generate_dataset.py --seed 2026 --output /tmp/heldout.jsonl`, then `uv run python benchmarks/run_bench.py --skip-llm --dataset /tmp/heldout.jsonl --results /tmp/heldout.md`. Both sets come from the same templates, so this checks new values, not new kinds of text.
 
 ## Tests
 

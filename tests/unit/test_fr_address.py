@@ -16,6 +16,9 @@ import pytest
         ("Local situé 27 quai Saint-Nicolas.", "27 quai Saint-Nicolas"),
         ("Code postal 33000 Bordeaux", "33000 Bordeaux"),
         ("Domicile : 5 impasse des Lilas, 97400 Saint-Denis", "5 impasse des Lilas, 97400 Saint-Denis"),
+        # Address block of a letter: postcode and city on the next line.
+        ("Jean Martin\n24 chemin Voltaire\n63000 Clermont-Ferrand\n\nObjet", "24 chemin Voltaire\n63000 Clermont-Ferrand"),
+        ("156, quai du Général Traore,\n80000 Amiens", "156, quai du Général Traore,\n80000 Amiens"),
     ],
 )
 def test_finds_an_address(detect, text, expected):

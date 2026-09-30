@@ -20,7 +20,9 @@ def merge_overlaps(results: list[dict]) -> list[dict]:
     """Return one detection per group of overlapping ones, sorted by position.
 
     The merged span covers the whole group, so no character of any detection stays in clear. Its entity type is
-    that of the longest detection of the group, then of the highest score.
+    that of the longest detection of the group, then of the highest score, then the last in alphabetical order:
+    the Analyzer returns results in no fixed order, and a tax number that also passes the card checksum must get
+    the same marker type on every run.
     """
     groups: list[list[dict]] = []
     for result in sorted(results, key=lambda r: r["start"]):
@@ -31,7 +33,7 @@ def merge_overlaps(results: list[dict]) -> list[dict]:
 
     merged = []
     for group in groups:
-        main = max(group, key=lambda r: (r["end"] - r["start"], r["score"]))
+        main = max(group, key=lambda r: (r["end"] - r["start"], r["score"], r["entity_type"]))
         start = min(r["start"] for r in group)
         end = max(r["end"] for r in group)
         merged.append(main | {"start": start, "end": end})
