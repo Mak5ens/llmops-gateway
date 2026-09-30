@@ -5,7 +5,7 @@
 
 **One gateway for every LLM call in the company: per-team keys and budgets, French PII anonymized before inference, every call traced and priced.**
 
-> Status: under construction. Milestone 1.1 (local gateway) is done: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. Milestone 1.2 (Presidio anonymization) is in progress: Presidio runs in the stack with a French model and French recognizers, and is not wired into the gateway yet. See the [roadmap](#roadmap).
+> Status: under construction. Milestone 1.1 (local gateway) is done: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. Milestone 1.2 (Presidio anonymization) is in progress: French personal data is masked before the model and put back into the answer, per team; the benchmark on 100 texts is next. See the [roadmap](#roadmap).
 
 ## Why
 
@@ -19,7 +19,7 @@ This repo is block 1 of an [internal AI platform portfolio](#part-of-an-internal
 ```mermaid
 flowchart LR
     app["Team app<br/>(virtual key)"] --> litellm["LiteLLM Proxy<br/>auth · budget · rate limit · routing"]
-    litellm -- "pre-call hook" --> presidio["Presidio<br/>French recognizers"]
+    litellm -- "pii-fr guardrail" --> presidio["Presidio<br/>French recognizers"]
     presidio -- "anonymized prompt" --> litellm
     litellm --> model["Ollama (dev)<br/>vLLM (cluster)"]
     model --> litellm
@@ -29,7 +29,7 @@ flowchart LR
 ```
 
 1. A team calls one URL with its **virtual key**. LiteLLM checks the key, the budget and the rate limit, then routes by model and use case (`/chat`, `/embed`, `/ocr`), with fallback between models.
-2. A **Presidio** pre-call hook replaces personal data (names, addresses, IBAN, French tax number, phone numbers) with placeholders. The model only sees the anonymized prompt.
+2. The **pii-fr guardrail** (LiteLLM's Presidio guardrail) replaces personal data (names, addresses, IBAN, French tax number, phone numbers) with numbered markers such as `<PERSON_1>`. The model only sees the anonymized prompt.
 3. The answer is **re-identified** before it goes back to the caller.
 4. Every call is traced in a **self-hosted Langfuse** with latency, tokens and cost per team. No trace leaves the company, and an automated test checks that traces contain no personal data.
 
@@ -49,7 +49,7 @@ Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https:/
 
 ```bash
 just gateway-up       # LiteLLM, PostgreSQL, two Ollama servers, Presidio, then the client teams; creates .env on first run
-just test             # integration tests: aliases, access per team, rate limit, budget, fallback, Presidio
+just test             # unit and integration tests: aliases, teams, limits, fallback, Presidio, PII masking
 just gateway-down     # add --volumes to also delete the database and the downloaded models
 ```
 
@@ -101,11 +101,11 @@ Clients keep calling the same alias throughout.
 Every client team has its own virtual key, the aliases it may call, a monthly budget and a rate limit, declared in [`config/tenants.yaml`](config/tenants.yaml).
 The master key stays with the platform team: it creates teams and keys, and no application uses it.
 
-| Team | Tenant | Aliases | Budget | Key limits |
-| -- | -- | -- | -- | -- |
-| `f1` | F1 strategy analyst (agent with RAG) | `chat-small`, `chat-large`, `embed` | $10 / 30 days | 60 requests and 100k tokens per minute |
-| `mj` | Game master assistant | `chat-small`, `chat-large` | $5 / 30 days | 30 requests and 50k tokens per minute |
-| `baux` | Lease compliance checker | `chat-large`, `embed` | $5 / 30 days | 20 requests and 50k tokens per minute |
+| Team | Tenant | Aliases | Budget | Key limits | PII masking |
+| -- | -- | -- | -- | -- | -- |
+| `f1` | F1 strategy analyst (agent with RAG) | `chat-small`, `chat-large`, `embed` | $10 / 30 days | 60 requests and 100k tokens per minute | Optional |
+| `mj` | Game master assistant | `chat-small`, `chat-large` | $5 / 30 days | 30 requests and 50k tokens per minute | Optional |
+| `baux` | Lease compliance checker | `chat-large`, `embed` | $5 / 30 days | 20 requests and 50k tokens per minute | Required |
 
 `just gateway-up` applies the file through [`scripts/bootstrap_tenants.py`](scripts/bootstrap_tenants.py), and `just tenants` applies it again after an edit, without restarting anything.
 The script is idempotent: it creates what is missing, updates what exists, and never deletes a team.
@@ -124,10 +124,51 @@ The budget blocks the call right after the one that crossed it: LiteLLM counts s
 
 **Why local models have a price.** LiteLLM knows no price for Ollama models, so spend stayed at $0 and budgets never triggered. Each alias carries an internal price per token instead (`chat-small` $0.10 / $0.40 per million tokens in / out, `chat-large` five times more, `embed` $0.02), a chargeback rate that works the same once a paid API joins. See [ADR-014](docs/adr/014-internal-price-for-self-hosted-models.md).
 
-## Personal data detection (Presidio)
+## Personal data anonymization (Presidio)
+
+The gateway masks French personal data before the model sees it, and puts it back into the answer. On a `baux` request, as sent to Ollama (LiteLLM debug log):
+
+| Step | Text |
+| -- | -- |
+| Caller sends | *Le bailleur est Jean Martin, domicilié au 12 rue de la Paix, 75002 Paris.* then *La locataire est Marie Dupont, IBAN FR76 3000 6000 0112 3456 7890 189. Jean Martin est-il joignable ?* |
+| Model receives | *Le bailleur est `<PERSON_1>`, domicilié au `<FR_ADDRESS_2>`.* then *La locataire est `<PERSON_3>`, `<IBAN_CODE_4>`. `<PERSON_1>` est-il joignable ?* |
+| Caller gets | The model's answer, with every marker replaced by its value |
+
+### The pii-fr guardrail
+
+The guardrail is LiteLLM's [Presidio integration](https://docs.litellm.ai/docs/proxy/guardrails/pii_masking_v2), set up in [`config/litellm.yaml`](config/litellm.yaml): French analysis, the entities to mask (names, places, addresses, emails, phones, IBAN, cards, crypto wallets, IP addresses, NIR, tax numbers) and a score threshold of 0.4. Dates stay in clear: a lease cannot be checked without them, and they identify nobody on their own.
+
+**Two fixes to LiteLLM's markers.** LiteLLM 1.83.14 numbers markers in a way that breaks on real French text, as tested on this stack: overlapping detections (an address and the city inside it) were spliced into `FR_ADDRESS_2ON_4`, and two people in two messages both became `<PERSON_1>`, so the answer named the tenant as the landlord. Both bugs are open upstream ([#42130](https://github.com/BerriAI/litellm/issues/42130), [#31959](https://github.com/BerriAI/litellm/issues/31959)). [`guardrails/presidio_markers.py`](guardrails/presidio_markers.py) subclasses LiteLLM's guardrail and overrides only the method that builds the markers: overlapping detections are merged into one, and numbers run across the request. See [ADR-015](docs/adr/015-presidio-marker-fixes.md).
+
+**Per team.** Assigning a guardrail to a team is a LiteLLM Enterprise feature, so the gateway uses what the open-source version offers: `pii-fr` runs on every request (`default_on`), and a team set to `pii_masking: optional` in `config/tenants.yaml` is opted out through its metadata, which only the admin API writes. A required team cannot opt out from the request: metadata sent by the caller is ignored.
+
+An opted-out team masks one request by asking for `pii-fr-on-request`, a twin of `pii-fr` that runs only on demand (LiteLLM ignores a request for `pii-fr` itself once the team has opted out of it):
+
+```python
+client = OpenAI(base_url="http://localhost:4000", api_key="sk-local-dev-team-f1")
+client.chat.completions.create(
+    model="chat-small",
+    messages=[{"role": "user", "content": "Je suis Marie Dupont, IBAN FR76 3000 6000 0112 3456 7890 189."}],
+    # Not part of the OpenAI API, so the SDK sends it through extra_body; with curl, put it at the top of the JSON.
+    extra_body={"guardrails": ["pii-fr-on-request"]},
+)
+```
+
+The choice holds for that call only. A team that always wants masking switches to `pii_masking: required` and runs `just tenants`.
+
+| Behaviour | Measured |
+| -- | -- |
+| Added latency with the guardrail (mock answer, no model call, p50 over 200 calls) | 11.5 ms instead of 4.5 ms: about 7 ms per request |
+| Opted-out team | 4.5 ms, same as a gateway without any guardrail (4.4 ms): Presidio is not called |
+| Presidio Analyzer down | Required team: `500 Presidio PII analysis failed` in 28 ms, nothing reaches the model. Opted-out teams keep working |
+| Streaming | Works, but the answer is buffered: markers can be split across chunks, so LiteLLM waits for the whole answer, puts the values back, and sends it as one chunk |
+
+**The model must copy markers as they are.** `qwen2.5:1.5b` sometimes drops the angle brackets (`PERSON_1`), and a marker that does not match exactly stays in the answer. A system message such as *Recopie les marqueurs entre chevrons tels quels* was enough in our tests; the benchmark of LAB-116 measures how often it happens.
+
+### Presidio services
 
 [Presidio](https://microsoft.github.io/presidio/) runs as two services. The **Analyzer** finds personal data in a text and returns its type, position and score; the **Anonymizer** replaces those spans with placeholders.
-The gateway does not call them yet: LAB-115 turns them into a LiteLLM guardrail. Until then, they can be called directly on `127.0.0.1`:
+Both can be called directly on `127.0.0.1`:
 
 ```bash
 curl -s localhost:5002/analyze -H 'content-type: application/json' \
@@ -181,10 +222,11 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 | -- | -- |
 | `test_routing.py` | Each alias answers, served by its own model (header `x-litellm-model-group`); `embed` returns 768 dimensions |
 | `test_tenants.py` | Allowed and refused aliases per team (401), rate limit (429), budget (400), isolation from other teams, idempotent bootstrap |
+| `test_pii_guardrail.py` | The prompt reaches the model with markers only, the answer (streamed or not) comes back with the real values, two people in two messages get two markers, `f1` is not masked unless it asks, `baux` cannot opt out from the request |
 | `test_presidio.py` | The Analyzer finds every French identifier in a lease, context words raise the scores, no identifier comes out of ordinary numbers (amounts, dates, lap numbers), English still works; the Anonymizer replaces what was found |
 | `test_fallback.py` | With `ollama-large` stopped, `chat-large` is served by `chat-small` within 30 s and the logs show the fallback |
 
-[`tests/unit/`](tests/unit/) runs each recognizer, as configured in `recognizers.yaml`, on at least 10 valid cases and on known false positives and edge cases: 76 cases in 0.1 s, without the stack (`just test-unit`). The valid NIRs, tax numbers and IBANs were checked with [python-stdnum](https://arthurdejong.org/python-stdnum/).
+[`tests/unit/`](tests/unit/) runs without the stack (`just test-unit`, 86 cases in about 2 s): each recognizer, as configured in `recognizers.yaml`, on at least 10 valid cases and on known false positives and edge cases, and the marker fixes of `presidio_markers.py` against the pinned LiteLLM version. The valid NIRs, tax numbers and IBANs were checked with [python-stdnum](https://arthurdejong.org/python-stdnum/).
 
 `just test` runs both suites, starts the stack if it is not running, and passes its arguments to pytest: `just test -k budget`, `just test tests/integration/test_fallback.py`.
 The fallback test stops a container, so it always runs last, and restarts it afterwards even on failure.
@@ -195,7 +237,7 @@ Removing the fallback from `config/litellm.yaml` makes `test_fallback.py` fail w
 ## Roadmap
 
 - [x] **1.1 Local gateway**: LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
-- [ ] **1.2 Presidio anonymization** (Presidio with a French model and French recognizers in the stack; LiteLLM guardrail next): pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
+- [ ] **1.2 Presidio anonymization** (French recognizers and the pii-fr guardrail with re-identification done; benchmark next): pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
 - [ ] **1.3 Tracing and cost with Langfuse**: self-hosted Langfuse, cost per team, automated test proving traces hold no personal data.
 - [ ] **1.4 ADR, README and article 1**: why LiteLLM rather than a home-made or cloud gateway; demo GIF.
 

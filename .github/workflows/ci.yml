@@ -39,7 +39,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   unit-tests:
-    # The Presidio recognizers against their test cases, without the stack: fails in seconds, not minutes.
+    # The Presidio recognizers and the guardrail class against their test cases, without the stack: fails in seconds, not minutes.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
