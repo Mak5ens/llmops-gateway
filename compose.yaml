@@ -26,6 +26,9 @@ services:
     image: ollama/ollama:0.34.4
     volumes:
       - ollama-models:/root/.ollama
+    ports:
+      # For the benchmark, which queries models without the gateway (benchmarks/run_bench.py).
+      - 127.0.0.1:${OLLAMA_PORT:-11435}:11434
     healthcheck: &ollama-healthcheck
       test: ["CMD", "ollama", "list"]
       interval: 5s

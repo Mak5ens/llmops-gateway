@@ -5,7 +5,7 @@
 
 **One gateway for every LLM call in the company: per-team keys and budgets, French PII anonymized before inference, every call traced and priced.**
 
-> Status: under construction. Milestone 1.1 (local gateway) is done: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. Milestone 1.2 (Presidio anonymization) is in progress: French personal data is masked before the model and put back into the answer, per team; the benchmark on 100 texts is next. See the [roadmap](#roadmap).
+> Status: under construction. Milestone 1.1 (local gateway) is done: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. Milestone 1.2 (Presidio anonymization) is done: French personal data is masked before the model and put back into the answer, per team, with 93.9 % of it fully masked on a 100-text benchmark. See the [roadmap](#roadmap).
 
 ## Why
 
@@ -163,7 +163,24 @@ The choice holds for that call only. A team that always wants masking switches t
 | Presidio Analyzer down | Required team: `500 Presidio PII analysis failed` in 28 ms, nothing reaches the model. Opted-out teams keep working |
 | Streaming | Works, but the answer is buffered: markers can be split across chunks, so LiteLLM waits for the whole answer, puts the values back, and sends it as one chunk |
 
-**The model must copy markers as they are.** `qwen2.5:1.5b` sometimes drops the angle brackets (`PERSON_1`), and a marker that does not match exactly stays in the answer. A system message such as *Recopie les marqueurs entre chevrons tels quels* was enough in our tests; the benchmark of LAB-116 measures how often it happens.
+**The model must copy markers as they are.** `qwen2.5:1.5b` sometimes drops the angle brackets (`PERSON_1`), and a marker that does not match exactly stays in the answer. A system message such as *Recopie les marqueurs entre chevrons tels quels* was enough in our tests; how often it happens without one is not measured yet.
+
+### How well it works
+
+[`benchmarks/results.md`](benchmarks/results.md) holds the full results of `just gateway-bench`, on 100 synthetic French texts (letters, emails, messages, forms) with 508 annotated personal data items, generated with a fixed seed by [`benchmarks/generate_dataset.py`](benchmarks/generate_dataset.py). Presidio runs as the guardrail does; the LLMs get the same entity types in a prompt and answer in JSON. Measured on an i7-14700KF, CPU only:
+
+| Detector | Precision | Recall | Fully masked | Latency p50 per text | Internal price per 1,000 texts |
+| -- | -- | -- | -- | -- | -- |
+| Presidio (this gateway) | 86.5 % | 94.7 % | 93.9 % | 9 ms | no model call |
+| qwen2.5:0.5b | 46.9 % | 9.1 % | 16.9 % | 541 ms | $0.08 |
+| qwen2.5:1.5b | 77.2 % | 36.0 % | 40.2 % | 1.6 s | $0.40 |
+| qwen2.5:7b | 91.4 % | 79.3 % | 83.1 % | 8.9 s | – |
+
+*Fully masked* is the share of items with no character left in clear, whatever the type found: it is what keeps the data from the model.
+
+**Does detecting personal data need a big model?** No. Presidio, with a spaCy model and rules, masks more than qwen2.5:7b (93.9 % against 83.1 %) about 1,000 times faster, and never invents or rewrites a value. Small LLMs are not an option at all: the 0.5b model masks 17 % of the items. Even the 7b model loses on structured identifiers, where rules and checksums are exact: it recopies IBANs without their spaces, so only 47 % of them could be found in the text, against 100 % for Presidio. Where it does well is names (80 % recall, 99 % precision), close to Presidio's spaCy model (91 %, 81 %).
+
+**Where Presidio leaks** (31 items out of 508, listed in the results): first names alone and full names alone on a line, which spaCy misses without context; addresses split over two lines, whose postcode and city stay in clear; and Mastercard numbers of the 2xxx range, which Presidio's card recognizer does not know. The guardrail adds 10 ms per request (p50, 14.6 ms instead of 4.6 ms). These leaks are tracked in LAB-156.
 
 ### Presidio services
 
@@ -201,7 +218,7 @@ A pattern alone is not enough when a check digit exists: a match whose key is wr
 | `URL` | `UrlOutsideEmailRecognizer` | Presidio's URL recognizer | No longer reports the domain of an email address |
 
 Context words raise a score when they appear in the 5 words before a match: in a lease, *domiciliée 12 rue de la Paix, 75002 Paris* scores 0.95 instead of 0.6, and *joignable au 06 12 34 56 78* 0.75 instead of 0.4.
-The spaCy model still makes mistakes of its own, which LAB-116 measures: it sometimes labels an email or `FR76` as a place, and French dates (*12 mars 1985*) are not detected.
+The spaCy model still makes mistakes of its own, measured in the [benchmark](#how-well-it-works): it misses names without context and sometimes labels an email or `FR76` as a place. French dates (*12 mars 1985*) are not detected either; the guardrail does not mask dates anyway.
 
 Memory of the Analyzer, measured with `docker stats` after 30 requests:
 
@@ -226,7 +243,7 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 | `test_presidio.py` | The Analyzer finds every French identifier in a lease, context words raise the scores, no identifier comes out of ordinary numbers (amounts, dates, lap numbers), English still works; the Anonymizer replaces what was found |
 | `test_fallback.py` | With `ollama-large` stopped, `chat-large` is served by `chat-small` within 30 s and the logs show the fallback |
 
-[`tests/unit/`](tests/unit/) runs without the stack (`just test-unit`, 86 cases in about 2 s): each recognizer, as configured in `recognizers.yaml`, on at least 10 valid cases and on known false positives and edge cases, and the marker fixes of `presidio_markers.py` against the pinned LiteLLM version. The valid NIRs, tax numbers and IBANs were checked with [python-stdnum](https://arthurdejong.org/python-stdnum/).
+[`tests/unit/`](tests/unit/) runs without the stack (`just test-unit`, 235 cases in about 2 s): each recognizer, as configured in `recognizers.yaml`, on at least 10 valid cases and on known false positives and edge cases; the marker fixes of `presidio_markers.py` against the pinned LiteLLM version; and the benchmark dataset (annotations, check digits, same file from the generator). The valid NIRs, tax numbers and IBANs were checked with [python-stdnum](https://arthurdejong.org/python-stdnum/).
 
 `just test` runs both suites, starts the stack if it is not running, and passes its arguments to pytest: `just test -k budget`, `just test tests/integration/test_fallback.py`.
 The fallback test stops a container, so it always runs last, and restarts it afterwards even on failure.
@@ -237,7 +254,7 @@ Removing the fallback from `config/litellm.yaml` makes `test_fallback.py` fail w
 ## Roadmap
 
 - [x] **1.1 Local gateway**: LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
-- [ ] **1.2 Presidio anonymization** (French recognizers and the pii-fr guardrail with re-identification done; benchmark next): pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
+- [x] **1.2 Presidio anonymization**: pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
 - [ ] **1.3 Tracing and cost with Langfuse**: self-hosted Langfuse, cost per team, automated test proving traces hold no personal data.
 - [ ] **1.4 ADR, README and article 1**: why LiteLLM rather than a home-made or cloud gateway; demo GIF.
 
