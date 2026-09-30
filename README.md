@@ -140,7 +140,21 @@ The guardrail is LiteLLM's [Presidio integration](https://docs.litellm.ai/docs/p
 
 **Two fixes to LiteLLM's markers.** LiteLLM 1.83.14 numbers markers in a way that breaks on real French text, as tested on this stack: overlapping detections (an address and the city inside it) were spliced into `FR_ADDRESS_2ON_4`, and two people in two messages both became `<PERSON_1>`, so the answer named the tenant as the landlord. Both bugs are open upstream ([#42130](https://github.com/BerriAI/litellm/issues/42130), [#31959](https://github.com/BerriAI/litellm/issues/31959)). [`guardrails/presidio_markers.py`](guardrails/presidio_markers.py) subclasses LiteLLM's guardrail and overrides only the method that builds the markers: overlapping detections are merged into one, and numbers run across the request. See [ADR-015](docs/adr/015-presidio-marker-fixes.md).
 
-**Per team.** Assigning a guardrail to a team is a LiteLLM Enterprise feature, so the gateway uses what the open-source version offers: `pii-fr` runs on every request (`default_on`), and a team set to `pii_masking: optional` in `config/tenants.yaml` is opted out through its metadata, which only the admin API writes. An opted-out team masks one request by asking for the twin guardrail: `extra_body={"guardrails": ["pii-fr-on-request"]}`. A required team cannot opt out from the request: metadata sent by the caller is ignored.
+**Per team.** Assigning a guardrail to a team is a LiteLLM Enterprise feature, so the gateway uses what the open-source version offers: `pii-fr` runs on every request (`default_on`), and a team set to `pii_masking: optional` in `config/tenants.yaml` is opted out through its metadata, which only the admin API writes. A required team cannot opt out from the request: metadata sent by the caller is ignored.
+
+An opted-out team masks one request by asking for `pii-fr-on-request`, a twin of `pii-fr` that runs only on demand (LiteLLM ignores a request for `pii-fr` itself once the team has opted out of it):
+
+```python
+client = OpenAI(base_url="http://localhost:4000", api_key="sk-local-dev-team-f1")
+client.chat.completions.create(
+    model="chat-small",
+    messages=[{"role": "user", "content": "Je suis Marie Dupont, IBAN FR76 3000 6000 0112 3456 7890 189."}],
+    # Not part of the OpenAI API, so the SDK sends it through extra_body; with curl, put it at the top of the JSON.
+    extra_body={"guardrails": ["pii-fr-on-request"]},
+)
+```
+
+The choice holds for that call only. A team that always wants masking switches to `pii_masking: required` and runs `just tenants`.
 
 | Behaviour | Measured |
 | -- | -- |
