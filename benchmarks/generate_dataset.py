@@ -11,7 +11,7 @@ Run with `uv run python benchmarks/generate_dataset.py`; the same seed gives the
 import json
 import random
 from collections.abc import Callable
-from datetime import date as Date
+from datetime import date as Date, timedelta
 from pathlib import Path
 
 import phonenumbers
@@ -144,18 +144,23 @@ def siret() -> str:
     return " ".join(["".join(str(rng.randint(0, 9)) for _ in range(3)) for _ in range(3)]) + f" {rng.randint(0, 99999):05d}"
 
 
+def day_between(first: Date, last: Date) -> Date:
+    # Not Faker's date_between: it goes through local timestamps, so the dates depend on the machine's time zone
+    # (the file generated in Paris differed from the one generated on a UTC CI runner).
+    return first + timedelta(days=rng.randint(0, (last - first).days))
+
+
 def date() -> str:
-    # Fixed bounds: Faker's relative ones ("-3y") depend on the day the script runs.
-    return fake.date_between(start_date=Date(2023, 1, 1), end_date=Date(2026, 6, 30)).strftime("%d/%m/%Y")
+    return day_between(Date(2023, 1, 1), Date(2026, 6, 30)).strftime("%d/%m/%Y")
 
 
 def sorted_dates(count: int) -> list[str]:
-    days = sorted(fake.date_between(start_date=Date(2023, 1, 1), end_date=Date(2026, 6, 30)) for _ in range(count))
+    days = sorted(day_between(Date(2023, 1, 1), Date(2026, 6, 30)) for _ in range(count))
     return [day.strftime("%d/%m/%Y") for day in days]
 
 
 def birth_date() -> str:
-    return fake.date_between(start_date=Date(1945, 1, 1), end_date=Date(2006, 12, 31)).strftime("%d/%m/%Y")
+    return day_between(Date(1945, 1, 1), Date(2006, 12, 31)).strftime("%d/%m/%Y")
 
 
 def amount() -> str:

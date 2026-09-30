@@ -5,7 +5,7 @@
 
 **One gateway for every LLM call in the company: per-team keys and budgets, French PII anonymized before inference, every call traced and priced.**
 
-> Status: under construction. Milestone 1.1 (local gateway) is done: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. Milestone 1.2 (Presidio anonymization) is done: French personal data is masked before the model and put back into the answer, per team, with 92.4 % of it fully masked on a 100-text benchmark. See the [roadmap](#roadmap).
+> Status: under construction. Milestone 1.1 (local gateway) is done: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. Milestone 1.2 (Presidio anonymization) is done: French personal data is masked before the model and put back into the answer, per team, with 93.9 % of it fully masked on a 100-text benchmark. See the [roadmap](#roadmap).
 
 ## Why
 
@@ -167,20 +167,20 @@ The choice holds for that call only. A team that always wants masking switches t
 
 ### How well it works
 
-[`benchmarks/results.md`](benchmarks/results.md) holds the full results of `just gateway-bench`, on 100 synthetic French texts (letters, emails, messages, forms) with 516 annotated personal data items, generated with a fixed seed by [`benchmarks/generate_dataset.py`](benchmarks/generate_dataset.py). Presidio runs as the guardrail does; the LLMs get the same entity types in a prompt and answer in JSON. Measured on an i7-14700KF, CPU only:
+[`benchmarks/results.md`](benchmarks/results.md) holds the full results of `just gateway-bench`, on 100 synthetic French texts (letters, emails, messages, forms) with 508 annotated personal data items, generated with a fixed seed by [`benchmarks/generate_dataset.py`](benchmarks/generate_dataset.py). Presidio runs as the guardrail does; the LLMs get the same entity types in a prompt and answer in JSON. Measured on an i7-14700KF, CPU only:
 
 | Detector | Precision | Recall | Fully masked | Latency p50 per text | Internal price per 1,000 texts |
 | -- | -- | -- | -- | -- | -- |
-| Presidio (this gateway) | 87.1 % | 93.8 % | 92.4 % | 8 ms | no model call |
-| qwen2.5:0.5b | 35.8 % | 7.6 % | 16.1 % | 553 ms | $0.08 |
-| qwen2.5:1.5b | 82.4 % | 38.0 % | 40.1 % | 1.6 s | $0.35 |
-| qwen2.5:7b | 90.0 % | 78.7 % | 82.9 % | 9.4 s | – |
+| Presidio (this gateway) | 86.5 % | 94.7 % | 93.9 % | 9 ms | no model call |
+| qwen2.5:0.5b | 46.9 % | 9.1 % | 16.9 % | 541 ms | $0.08 |
+| qwen2.5:1.5b | 77.2 % | 36.0 % | 40.2 % | 1.6 s | $0.40 |
+| qwen2.5:7b | 91.4 % | 79.3 % | 83.1 % | 8.9 s | – |
 
 *Fully masked* is the share of items with no character left in clear, whatever the type found: it is what keeps the data from the model.
 
-**Does detecting personal data need a big model?** No. Presidio, with a spaCy model and rules, masks more than qwen2.5:7b (92.4 % against 82.9 %) about 1,000 times faster, and never invents or rewrites a value. Small LLMs are not an option at all: the 0.5b model masks 16 % of the items. Even the 7b model loses on structured identifiers, where rules and checksums are exact: it recopies IBANs without their spaces, so only 40 % of them could be found in the text, against 100 % for Presidio. Where it does well is names (82 % recall, 98 % precision), close to Presidio's spaCy model (88 %, 81 %).
+**Does detecting personal data need a big model?** No. Presidio, with a spaCy model and rules, masks more than qwen2.5:7b (93.9 % against 83.1 %) about 1,000 times faster, and never invents or rewrites a value. Small LLMs are not an option at all: the 0.5b model masks 17 % of the items. Even the 7b model loses on structured identifiers, where rules and checksums are exact: it recopies IBANs without their spaces, so only 47 % of them could be found in the text, against 100 % for Presidio. Where it does well is names (80 % recall, 99 % precision), close to Presidio's spaCy model (91 %, 81 %).
 
-**Where Presidio leaks** (39 items out of 516, listed in the results): first names alone and full names alone on a line, which spaCy misses without context; addresses split over two lines, whose postcode and city stay in clear; and Mastercard numbers of the 2xxx range, which Presidio's card recognizer does not know. The guardrail adds 10 ms per request (p50, 15.7 ms instead of 5.4 ms).
+**Where Presidio leaks** (31 items out of 508, listed in the results): first names alone and full names alone on a line, which spaCy misses without context; addresses split over two lines, whose postcode and city stay in clear; and Mastercard numbers of the 2xxx range, which Presidio's card recognizer does not know. The guardrail adds 10 ms per request (p50, 14.6 ms instead of 4.6 ms). These leaks are tracked in LAB-156.
 
 ### Presidio services
 
