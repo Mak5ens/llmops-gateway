@@ -2,9 +2,10 @@
 # Included by compose.yaml, so `just gateway-up` starts it with the rest of the stack.
 #
 # Based on the official file of Langfuse v4.47.0 (github.com/langfuse/langfuse, docker-compose.yml), with:
-# - versions pinned instead of `langfuse:4`, `redis:7`, `postgres:17` and the MinIO `latest` tag;
-# - its own PostgreSQL rather than the gateway's (see "Langfuse" in the README);
-# - only the web UI and MinIO's S3 API published, on 127.0.0.1; the official file also exposes the worker,
+# - versions pinned instead of `langfuse:4`, `redis:7` and `postgres:17`;
+# - SeaweedFS instead of MinIO for S3 storage (see "Tracing with Langfuse" in the README);
+# - its own PostgreSQL rather than the gateway's (same section);
+# - only the web UI and the S3 API published, on 127.0.0.1; the official file also exposes the worker,
 #   ClickHouse, Redis and PostgreSQL;
 # - the options we leave at their default removed, secrets required from `.env`, telemetry to Langfuse off;
 # - the organization, the project, its API keys and an admin user created on first start (LANGFUSE_INIT_*).
@@ -19,7 +20,7 @@ services:
         condition: service_healthy
       langfuse-redis:
         condition: service_healthy
-      langfuse-minio:
+      langfuse-s3:
         condition: service_healthy
     environment:
       <<: &langfuse-env
@@ -39,22 +40,22 @@ services:
         # One bucket, three prefixes: raw events, media attached to traces, batch exports.
         LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
         LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
-        LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: minio
-        LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD:?set in .env}
-        LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+        LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+        LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_KEY:?set in .env}
+        LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-s3:8333
         LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
         LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
         LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
         LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
-        LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: minio
-        LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_MINIO_PASSWORD}
-        LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-minio:9000
+        LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: langfuse
+        LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_KEY}
+        LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-s3:8333
         LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
         LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
       NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?set in .env}
-      # The browser uploads and downloads media itself, so it gets MinIO's published address.
-      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:${LANGFUSE_MINIO_PORT:-9090}
-      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://langfuse-minio:9000
+      # The browser uploads and downloads media itself, so it gets the published address of the S3 API.
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:${LANGFUSE_S3_PORT:-8333}
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://langfuse-s3:8333
       # Created on first start only; later starts leave them as they are.
       LANGFUSE_INIT_ORG_ID: llmops-gateway
       LANGFUSE_INIT_ORG_NAME: LLMOps Gateway
@@ -143,30 +144,28 @@ services:
       REDIS_PASSWORD: ${LANGFUSE_REDIS_PASSWORD}
     restart: unless-stopped
 
-  # S3 storage for raw events and media. MinIO no longer publishes images; Chainguard builds them from source,
-  # with only a `latest` tag, hence the digest (MinIO RELEASE.2026-09-22T19-25-18Z).
-  langfuse-minio:
-    image: cgr.dev/chainguard/minio@sha256:4692462f35d97d7e82c30371d82f057703c5d9489bcae726010594c812f2d285
-    entrypoint: sh
-    # Creates the bucket before starting the server.
-    command: ["-c", "mkdir -p /data/langfuse && minio server --address :9000 /data"]
+  # S3 storage for raw events and media: SeaweedFS in a single process (master, volume server, filer, S3 API).
+  # The key pair from the environment becomes its admin identity; the bucket is created on the first upload.
+  langfuse-s3:
+    image: chrislusf/seaweedfs:4.48
+    command: ["server", "-dir=/data", "-s3", "-ip.bind=0.0.0.0"]
     environment:
-      MINIO_ROOT_USER: minio
-      MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_PASSWORD}
+      AWS_ACCESS_KEY_ID: langfuse
+      AWS_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_KEY}
     volumes:
-      - langfuse-minio-data:/data
+      - langfuse-s3-data:/data
     ports:
-      - 127.0.0.1:${LANGFUSE_MINIO_PORT:-9090}:9000
+      - 127.0.0.1:${LANGFUSE_S3_PORT:-8333}:8333
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8333/healthz"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 12
     restart: unless-stopped
 
 volumes:
   langfuse-postgres-data:
   langfuse-clickhouse-data:
   langfuse-clickhouse-logs:
-  langfuse-minio-data:
+  langfuse-s3-data:
   langfuse-redis-data:

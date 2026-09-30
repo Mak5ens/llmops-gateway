@@ -58,7 +58,7 @@ Langfuse (`compose.langfuse.yaml`), things to know:
 - `LANGFUSE_INIT_*` creates the organization, the project, its keys and the admin on first start only. Changing them in `.env` has no effect until `just gateway-down --volumes`.
 - Next.js and the worker listen on the container's hostname, not on localhost, hence `$(hostname)` in their healthchecks.
 - v4 only ingests over OTLP (`/api/public/otel/v1/traces`); `/api/public/ingestion` rejects traces, and `/api/public/traces/{id}` answers 404. Read traces back with `/api/public/v2/observations?traceId=`. In LiteLLM, use the `langfuse_otel` callback, not `langfuse`.
-- MinIO only ships Chainguard images with a `latest` tag, so it is pinned by digest.
+- S3 storage is SeaweedFS (`langfuse-s3`), not MinIO as in the official file: `weed server -s3` with the key pair in `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, which become its admin identity; the `langfuse` bucket is created on the first upload. `-ip.bind=0.0.0.0` is required, or the S3 API only listens on the container's IP and the healthcheck on 127.0.0.1 fails.
 
 ## Commands
 

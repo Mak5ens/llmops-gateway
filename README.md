@@ -39,7 +39,7 @@ flowchart LR
 | -- | -- |
 | LLM gateway | [LiteLLM Proxy](https://docs.litellm.ai/docs/simple_proxy) |
 | PII anonymization | [Microsoft Presidio](https://microsoft.github.io/presidio/) with French recognizers |
-| Tracing and cost | [Langfuse](https://langfuse.com/) self-hosted (PostgreSQL, ClickHouse, Redis, MinIO) |
+| Tracing and cost | [Langfuse](https://langfuse.com/) self-hosted (PostgreSQL, ClickHouse, Redis, SeaweedFS for S3) |
 | Local models | [Ollama](https://ollama.com/) with a small open-source model; vLLM takes over on the cluster |
 | Gateway database | PostgreSQL |
 
@@ -49,11 +49,11 @@ Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https:/
 
 | Machine | Needed | Measured |
 | -- | -- | -- |
-| RAM given to Docker | 10 GB, 16 GB with the benchmark | 7.5 GiB at peak during `just test`, of which 2.7 GiB for Langfuse |
+| RAM given to Docker | 12 GB, 16 GB with the benchmark | 7.5 to 8.4 GiB at peak during `just test` over two runs, of which 2.6 GiB for Langfuse |
 | Disk | 10 GB, 15 GB with the benchmark | 6.7 GB of images, 2 GB of models; the benchmark adds `qwen2.5:7b` (4.7 GB) |
 | CPU | No GPU needed | The models run on the CPU; measured on an i7-14700KF (28 threads) |
 
-Peak RAM per service, sampled with `docker stats` during the whole test suite: Presidio Analyzer 1.6 GiB (limited to 2 GiB), Langfuse web 1.4 GiB, the two Ollama servers 1.2 and 1.1 GiB with their model loaded, Langfuse worker 0.8 GiB, LiteLLM 0.7 GiB, ClickHouse 0.4 GiB, the rest under 0.15 GiB each. On Windows, WSL 2 gives Docker half of the machine's RAM by default.
+Peak RAM per service, sampled with `docker stats` during the whole test suite: Presidio Analyzer 1.6 GiB (limited to 2 GiB), Langfuse web 1.4 GiB, the two Ollama servers 1.1 to 2.1 GiB each with their models loaded, Langfuse worker 0.8 GiB, LiteLLM 0.7 GiB, ClickHouse 0.4 GiB, the rest under 0.15 GiB each. On Windows, WSL 2 gives Docker half of the machine's RAM by default.
 
 ```bash
 just gateway-up       # LiteLLM, PostgreSQL, two Ollama servers, Presidio, Langfuse, then the client teams; creates .env on first run
@@ -245,7 +245,7 @@ It starts in about 6 seconds once the image is built, and analyzes a 30-word Fre
 
 ## Tracing with Langfuse
 
-[Langfuse](https://langfuse.com/) v4.47.0 runs in the stack, self-hosted: traces hold prompts and answers, so they stay on the machine. [`compose.langfuse.yaml`](compose.langfuse.yaml), included by `compose.yaml`, starts from the [official Docker Compose file](https://github.com/langfuse/langfuse/blob/main/docker-compose.yml) with every version pinned, secrets required from `.env`, telemetry to Langfuse turned off, and only the UI and MinIO published, on `127.0.0.1`.
+[Langfuse](https://langfuse.com/) v4.47.0 runs in the stack, self-hosted: traces hold prompts and answers, so they stay on the machine. [`compose.langfuse.yaml`](compose.langfuse.yaml), included by `compose.yaml`, starts from the [official Docker Compose file](https://github.com/langfuse/langfuse/blob/main/docker-compose.yml) with every version pinned, secrets required from `.env`, telemetry to Langfuse turned off, only the UI and the S3 API published, on `127.0.0.1`, and SeaweedFS instead of MinIO for S3 storage.
 
 | Service | Role |
 | -- | -- |
@@ -254,9 +254,18 @@ It starts in about 6 seconds once the image is built, and analyzes a 30-word Fre
 | `langfuse-postgres` | Users, projects, keys, prompts |
 | `langfuse-clickhouse` | Traces and observations, dashboard queries |
 | `langfuse-redis` | Queue between web and worker |
-| `langfuse-minio` | S3 storage of raw events and media (MinIO) |
+| `langfuse-s3` | S3 storage of raw events and media ([SeaweedFS](https://github.com/seaweedfs/seaweedfs)) |
 
 On first start, Langfuse creates an organization, a *Gateway* project with the API keys `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` from `.env`, and the admin account. Sign-up is off, so that account is the only one. Later starts leave them unchanged: changing the keys in `.env` afterwards requires `just gateway-down --volumes`.
+
+**SeaweedFS rather than MinIO.** The official file uses MinIO, whose community edition is winding down: its admin console was removed in 2025, then its Docker images and binaries, and the repository went into maintenance mode. Langfuse only needs basic S3 (put, get, list, delete, presigned URLs), so any compatible store works:
+
+- SeaweedFS (Apache 2.0, actively developed) runs as one container, takes its key pair from environment variables and creates the bucket on the first upload: no init job.
+- Garage (AGPL) is even lighter, but needs a CLI step to set its layout and import the keys, hence one more one-shot service.
+- RustFS is a drop-in for MinIO, but still young.
+- On Kubernetes, the cloud's object storage will replace it anyway; locally it only stands in.
+
+SeaweedFS peaked at 64 MiB of RAM during the tests, against 85 MiB for MinIO.
 
 **Langfuse gets its own PostgreSQL**, rather than a second database on the gateway's:
 
@@ -277,7 +286,7 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 | `test_tenants.py` | Allowed and refused aliases per team (401), rate limit (429), budget (400), isolation from other teams, idempotent bootstrap |
 | `test_pii_guardrail.py` | The prompt reaches the model with markers only, the answer (streamed or not) comes back with the real values, two people in two messages get two markers, `f1` is not masked unless it asks, `baux` cannot opt out from the request |
 | `test_presidio.py` | The Analyzer finds every French identifier in a lease, context words raise the scores, no identifier comes out of ordinary numbers (amounts, dates, lap numbers), English still works; the Anonymizer replaces what was found |
-| `test_langfuse.py` | The UI answers, the Gateway project and its keys exist from the first start, a wrong key is refused, the admin can sign in and nobody can sign up, a span sent over OTLP is read back after going through MinIO, Redis, the worker and ClickHouse |
+| `test_langfuse.py` | The UI answers, the Gateway project and its keys exist from the first start, a wrong key is refused, the admin can sign in and nobody can sign up, a span sent over OTLP is read back after going through S3, Redis, the worker and ClickHouse |
 | `test_fallback.py` | With `ollama-large` stopped, `chat-large` is served by `chat-small` within 30 s and the logs show the fallback |
 
 [`tests/unit/`](tests/unit/) runs without the stack (`just test-unit`, 235 cases in about 2 s): each recognizer, as configured in `recognizers.yaml`, on at least 10 valid cases and on known false positives and edge cases; the marker fixes of `presidio_markers.py` against the pinned LiteLLM version; and the benchmark dataset (annotations, check digits, same file from the generator). The valid NIRs, tax numbers and IBANs were checked with [python-stdnum](https://arthurdejong.org/python-stdnum/).

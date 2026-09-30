@@ -1,5 +1,5 @@
 """Langfuse (compose.langfuse.yaml): the UI answers, the project and its keys exist from the first start,
-and a span sent over OTLP goes through the whole pipeline (MinIO, Redis, the worker, ClickHouse)."""
+and a span sent over OTLP goes through the whole pipeline (S3, Redis, the worker, ClickHouse)."""
 
 import os
 import time
@@ -54,7 +54,7 @@ def test_sign_up_is_disabled():
 
 
 def test_a_span_sent_over_otlp_can_be_read_back(langfuse):
-    # Langfuse v4 only takes traces over OTLP. The span goes to MinIO, then through Redis to the worker,
+    # Langfuse v4 only takes traces over OTLP. The span goes to S3 (SeaweedFS), then through Redis to the worker,
     # which writes it to ClickHouse: reading it back checks every component.
     trace_id, now = os.urandom(16).hex(), time.time_ns()
     span = {"traceId": trace_id, "spanId": os.urandom(8).hex(), "name": "probe", "kind": 1,
