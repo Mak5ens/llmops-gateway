@@ -1,0 +1,6 @@
+# Compose override of test_no_leak.py: LiteLLM at DEBUG, which logs the exact body it sends to Ollama.
+# Test only: at DEBUG, LiteLLM also logs every request as received, personal data included.
+services:
+  litellm:
+    environment:
+      LITELLM_LOG: DEBUG

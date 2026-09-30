@@ -96,8 +96,9 @@ When changing a recognizer because of the benchmark, also measure on a held-out 
 `tests/integration/` runs against the stack. Keep in mind:
 
 - `tests/integration/helpers.py` loads `.env` and holds the shared helpers; `conftest.py` holds the fixtures. The session fixture runs `docker compose up --wait` and the bootstrap, both no-ops when everything already runs.
-- Tests marked `disruptive` (stopping a container) are moved to the end of the run by `pytest_collection_modifyitems`: after `ollama-large` restarts, a pooled connection to the old server could make the next `chat-large` call wait for its timeout.
+- Tests marked `disruptive` (stopping a container, or restarting LiteLLM at `DEBUG` with `tests/integration/compose.litellm-debug.yaml` in `test_no_leak.py`) are moved to the end of the run by `pytest_collection_modifyitems`: after `ollama-large` restarts, a pooled connection to the old server could make the next `chat-large` call wait for its timeout.
 - Tests on limits and budgets use the `temp_team` fixture, never the real teams, so their spend and limits stay untouched. Clients have `max_retries=0`, otherwise the SDK retries a 429 and hides it.
+- `test_no_leak.py` lists the words Presidio leaves in clear on `benchmarks/dataset.jsonl` (`KNOWN_MISSES`). A recognizer change that masks one of them, or misses a new one, must update that list, and rerun `just gateway-bench` so `benchmarks/results.md` agrees. The conftest's session fixture runs `docker compose up`, which undoes any container-level change made before `pytest` starts: to prove a test catches a broken setting, change the file itself.
 - The job deliberately uses the production models and configuration: a test must fail when `config/litellm.yaml` is broken.
 
 ## Conventions

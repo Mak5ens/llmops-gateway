@@ -192,6 +192,27 @@ The choice holds for that call only. A team that always wants masking switches t
 
 The guardrail adds 10 ms per request (p50, 14.8 ms instead of 4.8 ms).
 
+### Proof that nothing else leaks
+
+`tests/integration/test_no_leak.py` replays the 100 texts through the gateway, with the key of a team under the guardrail, and searches every annotated value in two places:
+
+- **What the model receives.** LiteLLM is restarted at `DEBUG` for this test only: that level logs the exact body sent to Ollama. Ollama itself never logs prompts, even with `OLLAMA_DEBUG=2`. The texts go through as real calls to `chat-small`, one token each.
+- **Langfuse traces and container logs.** The traces are those of the replay, and the logs are those of LiteLLM and Ollama at their usual level, over the replay.
+
+A value leaks as soon as one of its words gets through. Presidio masked *Alexandrie* as a city and left the surname: `<LOCATION_1> Toussaint`. Searching for the whole value missed that. Words the text also uses outside its personal data (`rue`, `de`, an amount) do not count.
+
+| Where | Words found | Without the guardrail |
+| -- | -- | -- |
+| Body sent to the model | 3, the misses of the benchmark: *Toussaint*, *Paris*, *Caen* | 1,512 |
+| Langfuse traces | 0 | 0 (messages are never traced) |
+| LiteLLM and Ollama logs | 0 | 0 |
+
+The three known misses are listed in the test: a new miss fails it, and so does one that gets fixed, so the list stays true. Each check was proven by breaking what it guards:
+
+- turning the guardrail off (`default_on: false`) fails the check on the model;
+- tracing the messages (`turn_off_message_logging: false`) fails the check on the traces;
+- running LiteLLM at `DEBUG` in `compose.yaml` fails the check on the logs.
+
 ### Presidio services
 
 [Presidio](https://microsoft.github.io/presidio/) runs as two services. The **Analyzer** finds personal data in a text and returns its type, position and score; the **Anonymizer** replaces those spans with placeholders.
@@ -325,12 +346,13 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 | `test_presidio.py` | The Analyzer finds every French identifier in a lease, context words raise the scores, no identifier comes out of ordinary numbers (amounts, dates, lap numbers), English still works; the Anonymizer replaces what was found |
 | `test_langfuse.py` | The UI answers, the Gateway project and its keys exist from the first start, a wrong key is refused, the admin can sign in and nobody can sign up, a span sent over OTLP is read back after going through S3, Redis, the worker and ClickHouse |
 | `test_tracing.py` | A call of each team (each alias) reaches its team's project and no other, with its team, key, alias, tokens, latency and the cost LiteLLM charged; a call without a team reaches Gateway; a failed call is traced as an error; a masked lease leaves no personal data in its trace; each lead sees their team's project only, as a viewer; a second bootstrap duplicates nothing |
+| `test_no_leak.py` | The 100 annotated texts of the benchmark reach the model with only the 3 words Presidio is known to miss, and leave no personal data in the Langfuse traces or in the logs of LiteLLM and Ollama |
 | `test_fallback.py` | With `ollama-large` stopped, `chat-large` is served by `chat-small` within 30 s and the logs show the fallback |
 
 [`tests/unit/`](tests/unit/) runs without the stack (`just test-unit`, 235 cases in about 2 s): each recognizer, as configured in `recognizers.yaml`, on at least 10 valid cases and on known false positives and edge cases; the marker fixes of `presidio_markers.py` against the pinned LiteLLM version; and the benchmark dataset (annotations, check digits, same file from the generator). The valid NIRs, tax numbers and IBANs were checked with [python-stdnum](https://arthurdejong.org/python-stdnum/).
 
 `just test` runs both suites, starts the stack if it is not running, and passes its arguments to pytest: `just test -k budget`, `just test tests/integration/test_fallback.py`.
-The fallback test stops a container, so it always runs last, and restarts it afterwards even on failure.
+The fallback test stops a container, and the leak test restarts LiteLLM at `DEBUG`: both always run last, and put the stack back afterwards, even on failure.
 
 CI runs the unit tests in a job of their own, and the whole suite on every PR on a clean runner, with the same models as in development: 3 min 22 s for the job, of which 2 min 21 s to start the stack, download the models and build the Presidio Analyzer image. A tiny model in CI was not worth it: it would need a CI-only LiteLLM configuration, and the tests would no longer check the real one.
 Removing the fallback from `config/litellm.yaml` makes `test_fallback.py` fail with a `500 APIConnectionError`, so a broken routing configuration cannot be merged.
