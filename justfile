@@ -48,6 +48,11 @@ test *args: _env
 test-unit *args:
     uv run pytest tests/unit {{ args }}
 
+# Benchmark the anonymization (Presidio against local LLMs, latency of the guardrail) into benchmarks/results.md.
+# Downloads qwen2.5:7b (4.7 GB) on first run and takes about 30 minutes on CPU; `--skip-llm` takes 10 seconds.
+gateway-bench *args: gateway-up
+    uv run python benchmarks/run_bench.py {{ args }}
+
 [private]
 _env:
     #!/usr/bin/env sh

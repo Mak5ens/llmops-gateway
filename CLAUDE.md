@@ -10,7 +10,7 @@ Planning lives in Linear (team key `LAB`, project "Plateforme IA · Gateway d'en
 
 ## Current state
 
-Milestone 1.1 is done; milestone 1.2 (Presidio) is in progress. `compose.yaml` runs LiteLLM Proxy (`litellm-database` image, which applies its Prisma migrations to PostgreSQL at startup), PostgreSQL and two Ollama servers sharing one model volume: `ollama` serves `chat-small` and `embed`, `ollama-large` serves `chat-large`, so stopping it simulates an outage of one model server. A one-shot `ollama-pull` service downloads every model in `OLLAMA_MODELS` before LiteLLM starts. Presidio Analyzer and Anonymizer run in the stack, called by the `pii-fr` guardrail of LiteLLM. Langfuse (LAB-117) is not in the stack yet.
+Milestones 1.1 and 1.2 (Presidio) are done. `compose.yaml` runs LiteLLM Proxy (`litellm-database` image, which applies its Prisma migrations to PostgreSQL at startup), PostgreSQL and two Ollama servers sharing one model volume: `ollama` serves `chat-small` and `embed`, `ollama-large` serves `chat-large`, so stopping it simulates an outage of one model server. A one-shot `ollama-pull` service downloads every model in `OLLAMA_MODELS` before LiteLLM starts. Presidio Analyzer and Anonymizer run in the stack, called by the `pii-fr` guardrail of LiteLLM. Langfuse (LAB-117) is not in the stack yet.
 
 Routing lives in `config/litellm.yaml`: callers only use usage aliases (`chat-small`, `chat-large`, `embed`), and `chat-large` falls back to `chat-small`. Things learned the hard way, keep them in mind when touching it:
 
@@ -57,6 +57,7 @@ Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); t
 - `just gateway-up`: start the stack, wait until every service is healthy, then create or update the client teams and keys. Creates `.env` from `.env.example` if missing.
 - `just test`: run every pytest test in `tests/` through `uv run` (dependencies in `pyproject.toml`, locked in `uv.lock`). Starts the stack if needed. Extra arguments go to pytest: `just test -k budget`, `just test tests/integration/test_fallback.py`.
 - `just test-unit`: only `tests/unit/`, the recognizer and guardrail class tests; no stack needed, about 2 seconds.
+- `just gateway-bench`: start the stack, then benchmark the anonymization into `benchmarks/results.md` (about 30 minutes on CPU; `just gateway-bench --skip-llm` for Presidio and latency only, about 10 seconds).
 - `just smoke`: only `tests/integration/test_routing.py`, a quick check that every alias answers after `just gateway-reload`.
 - `just tenants`: apply `config/tenants.yaml` to the running gateway (also run by `just gateway-up`).
 - `just gateway-reload`: restart LiteLLM after a change to `config/litellm.yaml`.
@@ -66,6 +67,12 @@ Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); t
 - `just lint`: run every pre-commit check (whitespace, YAML, yamllint, markdownlint, gitleaks) on all files.
 
 CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, the unit tests, the full stack and the pytest suite on a clean runner (about 3.5 minutes, limit 10), and checks that the PR title is a Conventional Commit, since PRs are squash-merged.
+
+## Benchmark
+
+`benchmarks/generate_dataset.py` writes `benchmarks/dataset.jsonl` (100 French texts, fixed seed, committed); `tests/unit/test_dataset.py` checks that it still matches the generator, that annotations point at their values and that identifiers have valid check digits. Faker's relative dates (`-3y`, `date_of_birth`) depend on the current day, so the generator uses fixed bounds: keep it that way, or the file changes every day.
+
+`benchmarks/run_bench.py` reads the entities and threshold of `pii-fr` from `config/litellm.yaml`, runs Presidio as the guardrail does (with `merge_overlaps` from `guardrails/presidio_markers.py`), asks each Ollama model for the same entities in JSON, and measures the gateway with and without the guardrail on `mock_response`. It queries Ollama directly on `OLLAMA_PORT` (11435, since a local Ollama install usually holds 11434) and pulls `qwen2.5:7b` into the model volume on first run; that model is not in `OLLAMA_MODELS`. `results.md` is generated: rerun, never edit. Avoid other heavy work while it runs, it skews the latencies.
 
 ## Tests
 

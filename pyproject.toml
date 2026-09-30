@@ -20,6 +20,8 @@ dev = [
     "phonenumbers==9.0.26",
     "pytest>=8",
     "python-dotenv>=1",
+    "faker==40.40.0",
+    "pyyaml==6.0.3",
 ]
 
 [tool.uv]
