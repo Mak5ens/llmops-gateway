@@ -13,13 +13,13 @@ hooks:
 lint:
     pre-commit run --all-files
 
-# Start LiteLLM, PostgreSQL, Ollama and Presidio, wait until they are healthy, then create the client teams and keys
+# Start LiteLLM, PostgreSQL, Ollama, Presidio and Langfuse, wait until they are healthy, then create the client teams and keys
 gateway-up: _env
     docker compose up --detach --wait --build
     docker compose run --rm --no-deps tenants-bootstrap
     @echo "Gateway ready on http://localhost:${LITELLM_PORT:-4000} (try: just smoke)"
 
-# Stop the stack (pass --volumes to also delete the database and the models)
+# Stop the stack (pass --volumes to also delete the databases, the Langfuse traces and the models)
 gateway-down *args:
     docker compose down {{ args }}
 
