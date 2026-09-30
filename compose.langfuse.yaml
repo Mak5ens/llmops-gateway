@@ -1,0 +1,171 @@
+# Self-hosted Langfuse: traces, costs and latency of every call through the gateway.
+# Included by compose.yaml, so `just gateway-up` starts it with the rest of the stack.
+#
+# Based on the official file of Langfuse v4.47.0 (github.com/langfuse/langfuse, docker-compose.yml), with:
+# - versions pinned instead of `langfuse:4`, `redis:7` and `postgres:17`;
+# - SeaweedFS instead of MinIO for S3 storage (see "Tracing with Langfuse" in the README);
+# - its own PostgreSQL rather than the gateway's (same section);
+# - only the web UI and the S3 API published, on 127.0.0.1; the official file also exposes the worker,
+#   ClickHouse, Redis and PostgreSQL;
+# - the options we leave at their default removed, secrets required from `.env`, telemetry to Langfuse off;
+# - the organization, the project, its API keys and an admin user created on first start (LANGFUSE_INIT_*).
+
+services:
+  langfuse-web:
+    image: docker.langfuse.com/langfuse/langfuse:4.47.0
+    depends_on: &langfuse-depends-on
+      langfuse-postgres:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-s3:
+        condition: service_healthy
+    environment:
+      <<: &langfuse-env
+        NEXTAUTH_URL: http://localhost:${LANGFUSE_PORT:-3100}
+        DATABASE_URL: postgresql://langfuse:${LANGFUSE_POSTGRES_PASSWORD:?set in .env}@langfuse-postgres:5432/langfuse
+        SALT: ${LANGFUSE_SALT:?set in .env}
+        ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:?set in .env}
+        TELEMETRY_ENABLED: "false"
+        CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+        CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+        CLICKHOUSE_USER: clickhouse
+        CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:?set in .env}
+        CLICKHOUSE_CLUSTER_ENABLED: "false"
+        REDIS_HOST: langfuse-redis
+        REDIS_PORT: "6379"
+        REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD:?set in .env}
+        # One bucket, three prefixes: raw events, media attached to traces, batch exports.
+        LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+        LANGFUSE_S3_EVENT_UPLOAD_REGION: auto
+        LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: langfuse
+        LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_KEY:?set in .env}
+        LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://langfuse-s3:8333
+        LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+        LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+        LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+        LANGFUSE_S3_MEDIA_UPLOAD_REGION: auto
+        LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: langfuse
+        LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_KEY}
+        LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://langfuse-s3:8333
+        LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+        LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:?set in .env}
+      # The browser uploads and downloads media itself, so it gets the published address of the S3 API.
+      LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://localhost:${LANGFUSE_S3_PORT:-8333}
+      LANGFUSE_S3_MEDIA_UPLOAD_INTERNAL_ENDPOINT: http://langfuse-s3:8333
+      # Created on first start only; later starts leave them as they are.
+      LANGFUSE_INIT_ORG_ID: llmops-gateway
+      LANGFUSE_INIT_ORG_NAME: LLMOps Gateway
+      LANGFUSE_INIT_PROJECT_ID: gateway
+      LANGFUSE_INIT_PROJECT_NAME: Gateway
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:?set in .env}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:?set in .env}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_ADMIN_EMAIL:?set in .env}
+      LANGFUSE_INIT_USER_NAME: Admin
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_ADMIN_PASSWORD:?set in .env}
+      # No sign-up page: the admin above is the only account.
+      AUTH_DISABLE_SIGNUP: "true"
+    ports:
+      - 127.0.0.1:${LANGFUSE_PORT:-3100}:3000
+    healthcheck:
+      # Next.js listens on the container's hostname, not on localhost.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://$$(hostname):3000/api/public/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      # Runs the PostgreSQL and ClickHouse migrations before listening.
+      start_period: 30s
+    restart: unless-stopped
+
+  # Takes the events queued in Redis and writes them to ClickHouse.
+  langfuse-worker:
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.47.0
+    depends_on: *langfuse-depends-on
+    environment: *langfuse-env
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://$$(hostname):3030/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 30s
+    restart: unless-stopped
+
+  langfuse-postgres:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_USER: langfuse
+      POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD}
+      POSTGRES_DB: langfuse
+      # Langfuse expects UTC.
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - langfuse-postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langfuse -d langfuse"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Stores traces and observations, and answers the dashboards' queries.
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:25.12.11.4
+    user: "101:101"
+    environment:
+      CLICKHOUSE_DB: default
+      CLICKHOUSE_USER: clickhouse
+      CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD}
+    volumes:
+      - langfuse-clickhouse-data:/var/lib/clickhouse
+      - langfuse-clickhouse-logs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # Queue between the web service, which receives events, and the worker.
+  langfuse-redis:
+    image: redis:7.4.11-alpine
+    command: ["--requirepass", "${LANGFUSE_REDIS_PASSWORD}", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - langfuse-redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${LANGFUSE_REDIS_PASSWORD}
+    restart: unless-stopped
+
+  # S3 storage for raw events and media: SeaweedFS in a single process (master, volume server, filer, S3 API).
+  # The key pair from the environment becomes its admin identity; the bucket is created on the first upload.
+  langfuse-s3:
+    image: chrislusf/seaweedfs:4.48
+    command: ["server", "-dir=/data", "-s3", "-ip.bind=0.0.0.0"]
+    environment:
+      AWS_ACCESS_KEY_ID: langfuse
+      AWS_SECRET_ACCESS_KEY: ${LANGFUSE_S3_SECRET_KEY}
+    volumes:
+      - langfuse-s3-data:/data
+    ports:
+      - 127.0.0.1:${LANGFUSE_S3_PORT:-8333}:8333
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+volumes:
+  langfuse-postgres-data:
+  langfuse-clickhouse-data:
+  langfuse-clickhouse-logs:
+  langfuse-s3-data:
+  langfuse-redis-data:

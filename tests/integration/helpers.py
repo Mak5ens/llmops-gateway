@@ -21,6 +21,9 @@ GATEWAY_URL = f"http://localhost:{os.environ.get('LITELLM_PORT', '4000')}"
 MASTER_KEY = os.environ["LITELLM_MASTER_KEY"]
 PRESIDIO_ANALYZER_URL = f"http://localhost:{os.environ.get('PRESIDIO_ANALYZER_PORT', '5002')}"
 PRESIDIO_ANONYMIZER_URL = f"http://localhost:{os.environ.get('PRESIDIO_ANONYMIZER_PORT', '5001')}"
+LANGFUSE_URL = f"http://localhost:{os.environ.get('LANGFUSE_PORT', '3100')}"
+LANGFUSE_KEYS = (os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
+LANGFUSE_ADMIN = (os.environ["LANGFUSE_ADMIN_EMAIL"], os.environ["LANGFUSE_ADMIN_PASSWORD"])
 TEAM_KEYS = {
     "f1": os.environ["TEAM_KEY_F1"],
     "mj": os.environ["TEAM_KEY_MJ"],

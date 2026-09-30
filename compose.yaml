@@ -1,8 +1,11 @@
 # Local gateway stack: LiteLLM Proxy in front of Ollama, with PostgreSQL for keys and spend
-# and Presidio to detect and anonymize personal data.
+# and Presidio to detect and anonymize personal data. Langfuse, which traces the calls, is in compose.langfuse.yaml.
 # Start with `just gateway-up`, stop with `just gateway-down`. Settings come from `.env` (see `.env.example`).
 
 name: llmops-gateway
+
+include:
+  - compose.langfuse.yaml
 
 services:
   postgres:

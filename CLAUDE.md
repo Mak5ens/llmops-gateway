@@ -10,7 +10,7 @@ Planning lives in Linear (team key `LAB`, project "Plateforme IA · Gateway d'en
 
 ## Current state
 
-Milestones 1.1 and 1.2 (Presidio) are done. `compose.yaml` runs LiteLLM Proxy (`litellm-database` image, which applies its Prisma migrations to PostgreSQL at startup), PostgreSQL and two Ollama servers sharing one model volume: `ollama` serves `chat-small` and `embed`, `ollama-large` serves `chat-large`, so stopping it simulates an outage of one model server. A one-shot `ollama-pull` service downloads every model in `OLLAMA_MODELS` before LiteLLM starts. Presidio Analyzer and Anonymizer run in the stack, called by the `pii-fr` guardrail of LiteLLM. Langfuse (LAB-117) is not in the stack yet.
+Milestones 1.1 and 1.2 (Presidio) are done; 1.3 (Langfuse) is in progress. `compose.yaml` runs LiteLLM Proxy (`litellm-database` image, which applies its Prisma migrations to PostgreSQL at startup), PostgreSQL and two Ollama servers sharing one model volume: `ollama` serves `chat-small` and `embed`, `ollama-large` serves `chat-large`, so stopping it simulates an outage of one model server. A one-shot `ollama-pull` service downloads every model in `OLLAMA_MODELS` before LiteLLM starts. Presidio Analyzer and Anonymizer run in the stack, called by the `pii-fr` guardrail of LiteLLM. Langfuse v4 runs from `compose.langfuse.yaml`, included by `compose.yaml` (see below); LiteLLM does not send it traces yet (LAB-118).
 
 Routing lives in `config/litellm.yaml`: callers only use usage aliases (`chat-small`, `chat-large`, `embed`), and `chat-large` falls back to `chat-small`. Things learned the hard way, keep them in mind when touching it:
 
@@ -52,6 +52,14 @@ PII guardrail notes (`guardrails:` in `config/litellm.yaml`):
 
 Image versions are pinned in `compose.yaml`. When bumping them, keep the healthchecks working: the LiteLLM and Ollama images ship without curl or wget (the Presidio ones have curl), hence `python3` in the LiteLLM healthcheck and `ollama list` for Ollama. PostgreSQL 18 stores data under `/var/lib/postgresql/<major>/`, so the volume is mounted on the parent directory. `just` parses `.env` itself and needs quotes around values with spaces, such as `OLLAMA_MODELS`.
 
+Langfuse (`compose.langfuse.yaml`), things to know:
+
+- It is the official compose file, trimmed and pinned; its services are prefixed `langfuse-`, and it has its own PostgreSQL (reason in the README). `langfuse-web` and `langfuse-worker` share one environment through a YAML anchor: add an option there, not to one service only.
+- `LANGFUSE_INIT_*` creates the organization, the project, its keys and the admin on first start only. Changing them in `.env` has no effect until `just gateway-down --volumes`.
+- Next.js and the worker listen on the container's hostname, not on localhost, hence `$(hostname)` in their healthchecks.
+- v4 only ingests over OTLP (`/api/public/otel/v1/traces`); `/api/public/ingestion` rejects traces, and `/api/public/traces/{id}` answers 404. Read traces back with `/api/public/v2/observations?traceId=`. In LiteLLM, use the `langfuse_otel` callback, not `langfuse`.
+- S3 storage is SeaweedFS (`langfuse-s3`), not MinIO as in the official file: `weed server -s3` with the key pair in `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, which become its admin identity; the `langfuse` bucket is created on the first upload. `-ip.bind=0.0.0.0` is required, or the S3 API only listens on the container's IP and the healthcheck on 127.0.0.1 fails.
+
 ## Commands
 
 Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); there is no Makefile. Run `just` to list recipes.
@@ -63,7 +71,7 @@ Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); t
 - `just smoke`: only `tests/integration/test_routing.py`, a quick check that every alias answers after `just gateway-reload`.
 - `just tenants`: apply `config/tenants.yaml` to the running gateway (also run by `just gateway-up`).
 - `just gateway-reload`: restart LiteLLM after a change to `config/litellm.yaml`.
-- `just gateway-down`: stop the stack; `just gateway-down --volumes` also deletes the database and the models.
+- `just gateway-down`: stop the stack; `just gateway-down --volumes` also deletes the databases, the Langfuse traces and the models.
 - `just gateway-logs`: follow the logs.
 - `just hooks`: install the pre-commit and commit-msg git hooks.
 - `just lint`: run every pre-commit check (whitespace, YAML, yamllint, markdownlint, gitleaks) on all files.
