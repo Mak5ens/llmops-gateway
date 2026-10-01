@@ -26,6 +26,10 @@ from test_pii_guardrail import user
 from test_tracing import observations
 
 ROWS = [json.loads(line) for line in (ROOT / "benchmarks" / "dataset.jsonl").read_text().splitlines()]
+# CI runs these tests in a job of their own, in parallel with the rest of the suite: the 100 real calls take about
+# 3 minutes on a GitHub runner, which would bring the main job close to its 10-minute limit.
+pytestmark = pytest.mark.leak
+
 DEBUG_OVERRIDE = Path(__file__).with_name("compose.litellm-debug.yaml")
 # What Presidio leaves in clear ("What Presidio left in clear" in benchmarks/results.md): (text, word).
 # "Alexandrie" is taken for the city, so the first name is masked as a LOCATION and the surname stays.
