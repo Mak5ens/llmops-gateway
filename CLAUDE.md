@@ -79,7 +79,7 @@ Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); t
 - `just hooks`: install the pre-commit and commit-msg git hooks.
 - `just lint`: run every pre-commit check (whitespace, YAML, yamllint, markdownlint, gitleaks) on all files.
 
-CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, the unit tests, the full stack and the pytest suite on a clean runner (about 3.5 minutes, limit 10), and checks that the PR title is a Conventional Commit, since PRs are squash-merged.
+CI (`.github/workflows/ci.yml`) runs pre-commit, a full-history gitleaks scan, the unit tests, the full stack and the pytest suite on a clean runner (`-m "not leak"`, about 7.5 minutes, limit 10), the leak test in a parallel job with its own stack (`-m leak`, about 7.5 minutes), and checks that the PR title is a Conventional Commit, since PRs are squash-merged.
 
 ## Benchmark
 

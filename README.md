@@ -213,6 +213,8 @@ The three known misses are listed in the test: a new miss fails it, and so does 
 - tracing the messages (`turn_off_message_logging: false`) fails the check on the traces;
 - running LiteLLM at `DEBUG` in `compose.yaml` fails the check on the logs.
 
+CI runs this test in a job of its own (`just test -m leak`), in parallel with the rest of the suite (`just test -m "not leak"`).
+
 ### Presidio services
 
 [Presidio](https://microsoft.github.io/presidio/) runs as two services. The **Analyzer** finds personal data in a text and returns its type, position and score; the **Anonymizer** replaces those spans with placeholders.
@@ -354,7 +356,7 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 `just test` runs both suites, starts the stack if it is not running, and passes its arguments to pytest: `just test -k budget`, `just test tests/integration/test_fallback.py`.
 The fallback test stops a container, and the leak test restarts LiteLLM at `DEBUG`: both always run last, and put the stack back afterwards, even on failure.
 
-CI runs the unit tests in a job of their own, and the whole suite on every PR on a clean runner, with the same models as in development: 3 min 22 s for the job, of which 2 min 21 s to start the stack, download the models and build the Presidio Analyzer image. A tiny model in CI was not worth it: it would need a CI-only LiteLLM configuration, and the tests would no longer check the real one.
+CI runs the whole suite on every PR on a clean runner, with the same models as in development, in three parallel jobs: the unit tests (about 20 s), the integration tests (about 7.5 min) and the leak test (about 7.5 min). Each of the last two starts its own stack, which takes 3 to 4.5 minutes to download the models and build the Presidio Analyzer image; the 100 real calls of the leak test take about 4 minutes more, and in the main job they would bring it close to its 10-minute limit. A tiny model in CI was not worth it: it would need a CI-only LiteLLM configuration, and the tests would no longer check the real one.
 Removing the fallback from `config/litellm.yaml` makes `test_fallback.py` fail with a `500 APIConnectionError`, so a broken routing configuration cannot be merged.
 
 ## Roadmap
