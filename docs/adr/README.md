@@ -8,6 +8,7 @@ ADR numbers are global to the portfolio, so the numbers here are not consecutive
 
 | ADR | Decision | Status |
 | -- | -- | -- |
+| [ADR-007](007-litellm-as-llm-gateway.md) | LiteLLM Proxy as the LLM gateway, rather than our own, Envoy AI Gateway, Kong or a SaaS | Accepted |
 | [ADR-014](014-internal-price-for-self-hosted-models.md) | Budget self-hosted models with an internal price per token | Accepted |
 | [ADR-015](015-presidio-marker-fixes.md) | Fix the numbered markers of LiteLLM's Presidio guardrail in a subclass | Accepted |
 | [ADR-016](016-langfuse-project-per-team.md) | One Langfuse organization per team, provisioned in Langfuse's database | Accepted |
