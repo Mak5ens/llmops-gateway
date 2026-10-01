@@ -1,5 +1,7 @@
 # Load .env so recipes see LITELLM_MASTER_KEY and LITELLM_PORT.
 set dotenv-load
+# Pass recipe arguments as "$@", so a quoted argument like `-m "not leak"` stays one argument.
+set positional-arguments
 
 # List recipes
 default:
@@ -21,7 +23,7 @@ gateway-up: _env
 
 # Stop the stack (pass --volumes to also delete the databases, the Langfuse traces and the models)
 gateway-down *args:
-    docker compose down {{ args }}
+    docker compose down "$@"
 
 # Restart LiteLLM to apply changes to config/litellm.yaml
 gateway-reload:
@@ -42,16 +44,16 @@ smoke: _env
 
 # Run every test (starts the stack if needed); pass pytest arguments, e.g. `just test -k budget`
 test *args: _env
-    uv run pytest {{ args }}
+    uv run pytest "$@"
 
 # Run the unit tests of the Presidio recognizers and of the guardrail class: no stack, a few seconds
 test-unit *args:
-    uv run pytest tests/unit {{ args }}
+    uv run pytest tests/unit "$@"
 
 # Benchmark the anonymization (Presidio against local LLMs, latency of the guardrail) into benchmarks/results.md.
 # Downloads qwen2.5:7b (4.7 GB) on first run and takes about 30 minutes on CPU; `--skip-llm` takes 10 seconds.
 gateway-bench *args: gateway-up
-    uv run python benchmarks/run_bench.py {{ args }}
+    uv run python benchmarks/run_bench.py "$@"
 
 [private]
 _env:
