@@ -59,7 +59,25 @@ jobs:
       - uses: extractions/setup-just@v4
       # A step of its own, so its duration (model download included) shows apart from the tests.
       - run: just gateway-up
-      - run: just test
+      # The leak tests run in the job below, on a stack of their own.
+      - run: just test -m "not leak"
+      - if: failure()
+        run: docker compose logs
+      - if: always()
+        run: just gateway-down --volumes
+
+  no-leak:
+    # Replays the 100 annotated texts of the benchmark through the gateway: only the words Presidio is known to miss
+    # may reach the model, and no personal data the traces or the logs (tests/integration/test_no_leak.py).
+    # A job of its own, in parallel: its 100 real model calls would bring gateway-integration close to its limit.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+      - uses: extractions/setup-just@v4
+      - run: just gateway-up
+      - run: just test -m leak
       - if: failure()
         run: docker compose logs
       - if: always()

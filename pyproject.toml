@@ -34,4 +34,5 @@ pythonpath = ["docker/presidio-analyzer", "guardrails"]
 addopts = "-v -ra"
 markers = [
     "disruptive: stops a container of the stack; runs after every other test",
+    "leak: replays the benchmark texts to prove no personal data leaks; a CI job of its own (`-m leak`)",
 ]
