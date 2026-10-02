@@ -72,6 +72,7 @@ Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); t
 - `just test-unit`: only `tests/unit/`, the recognizer and guardrail class tests; no stack needed, about 2 seconds.
 - `just gateway-bench`: start the stack, then benchmark the anonymization into `benchmarks/results.md` (about 30 minutes on CPU; `just gateway-bench --skip-llm` for Presidio and latency only, about 10 seconds).
 - `just smoke`: only `tests/integration/test_routing.py`, a quick check that every alias answers after `just gateway-reload`.
+- `just demo`: `scripts/demo.py`, one masked call of the `baux` team on `chat-large`, then its Langfuse trace; it is what the README's GIF shows. `just demo-record` records `docs/demo.gif` again from `docs/demo.tape` (needs vhs, ttyd and ffmpeg, and the stack up). Re-record after a change to the demo's output.
 - `just tenants`: apply `config/tenants.yaml` to the running gateway (also run by `just gateway-up`).
 - `just gateway-reload`: restart LiteLLM after a change to `config/litellm.yaml`.
 - `just gateway-down`: stop the stack; `just gateway-down --volumes` also deletes the databases, the Langfuse traces and the models.

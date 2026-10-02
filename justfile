@@ -42,6 +42,14 @@ gateway-logs:
 smoke: _env
     uv run pytest tests/integration/test_routing.py
 
+# Send a message with personal data as the lease team, and show what the model, the team and Langfuse each see
+demo: _env
+    @uv run python scripts/demo.py
+
+# Record docs/demo.gif from docs/demo.tape (needs vhs, ttyd and ffmpeg, and the stack up)
+demo-record:
+    vhs docs/demo.tape
+
 # Run every test (starts the stack if needed); pass pytest arguments, e.g. `just test -k budget`
 test *args: _env
     uv run pytest "$@"

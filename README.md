@@ -5,14 +5,30 @@
 
 **One gateway for every LLM call in the company: per-team keys and budgets, French PII anonymized before inference, every call traced and priced.**
 
-> Status: under construction. Milestone 1.1 (local gateway) is done: LiteLLM, PostgreSQL and Ollama run with Docker Compose, behind usage aliases with a fallback, and three client teams have their own key, budget and rate limit. Milestone 1.2 (Presidio anonymization) is done: French personal data is masked before the model and put back into the answer, per team, with 99.2 % of it fully masked on a 100-text benchmark. See the [roadmap](#roadmap).
+Teams that call LLMs each their own way share API keys, cannot say what they spend, and send their customers' names and IBANs to the model in clear text.
+This gateway gives each team its own key, budget and rate limit, masks French personal data before any model sees it, and traces every call with its cost, without a word of the prompt.
+It runs on a laptop with Docker Compose and self-hosted models only: no prompt leaves the machine.
+
+![Demo: a message with a name, an address, an IBAN and a phone number goes through the gateway; the model only gets markers, the answer comes back with the real values, and the Langfuse trace holds the cost but no personal data](docs/demo.gif)
+
+*`just demo`: the lease team sends a message full of personal data. Recorded on a laptop CPU, model `qwen2.5:1.5b`.*
+
+| At a glance | Measured |
+| -- | -- |
+| French personal data fully masked, 100 annotated texts | 99.2 % with Presidio, against 82.7 % for `qwen2.5:7b` asked to do it ([benchmark](#how-well-it-works)) |
+| Latency added by the masking | about 10 ms per request (p50) |
+| Words of personal data reaching the model, same 100 texts | 3 known misses, against 1,512 without the guardrail ([leak test](#proof-that-nothing-else-leaks)) |
+| Personal data in Langfuse traces and in the logs | none, checked on every PR |
+| Code of our own around LiteLLM | one 85-line guardrail class, two bootstrap scripts, two YAML files ([ADR-007](docs/adr/007-litellm-as-llm-gateway.md)) |
+
+> Status: block 1 is done: local gateway (1.1), Presidio anonymization (1.2), tracing and cost with Langfuse (1.3). The write-up (1.4) is in progress. See the [roadmap](#roadmap).
 
 ## Why
 
 In the (fictional) 200-person company behind this project, every team calls LLMs its own way: shared API keys, no cost tracking, personal data sent in clear text.
 The Platform team puts a **single gateway** in front of every model. Product teams become tenants: each one gets its own virtual key, budget and traces.
 
-This repo is block 1 of an [internal AI platform portfolio](#part-of-an-internal-ai-platform). It runs with Docker Compose before any cluster exists, then moves to Kubernetes in [`llmops-platform`](https://github.com/Mak5ens/llmops-platform).
+This repo is block 1 of an [internal AI platform portfolio](#part-of-an-internal-ai-platform). It runs with Docker Compose before any cluster exists, then moves to Kubernetes in [`llmops-platform`](https://github.com/Mak5ens/llmops-platform), behind Envoy Gateway ([ADR-005](https://github.com/Mak5ens/llmops-platform/blob/main/docs/adr/005-gateway-api-and-envoy-gateway.md)).
 
 ## How it works
 
@@ -56,12 +72,15 @@ Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https:/
 Peak RAM per service, sampled with `docker stats` during the whole test suite: Presidio Analyzer 1.6 GiB (limited to 2 GiB), Langfuse web 1.4 GiB, the two Ollama servers 1.1 to 2.1 GiB each with their models loaded, Langfuse worker 0.8 GiB, LiteLLM 0.7 GiB, ClickHouse 0.4 GiB, the rest under 0.15 GiB each. On Windows, WSL 2 gives Docker half of the machine's RAM by default.
 
 ```bash
+git clone https://github.com/Mak5ens/llmops-gateway && cd llmops-gateway
 just gateway-up       # LiteLLM, PostgreSQL, two Ollama servers, Presidio, Langfuse, then the client teams; creates .env on first run
+just demo             # the demo above: a message with personal data, as the model, the team and Langfuse see it
 just test             # unit and integration tests: aliases, teams, limits, fallback, Presidio, PII masking, Langfuse
 just gateway-down     # add --volumes to also delete the databases, the traces and the downloaded models
 ```
 
 First start on a clean machine: about 2 minutes 10 seconds, including the download of three models (about 2 GB) and the build of the Presidio Analyzer image with its French model (2.8 GB on disk).
+`.env` is created from [`.env.example`](.env.example) with local-only secrets: change them before any shared use.
 The gateway listens on `http://localhost:4000` and speaks the OpenAI API. Call it with a team key from `.env`, such as `TEAM_KEY_F1`:
 
 ```python
@@ -72,7 +91,7 @@ client.chat.completions.create(model="chat-small", messages=[{"role": "user", "c
 client.embeddings.create(model="embed", input="Le locataire a payé son loyer en retard.")
 ```
 
-Langfuse's UI is on `http://localhost:3100`: sign in with `LANGFUSE_ADMIN_EMAIL` and `LANGFUSE_ADMIN_PASSWORD` from `.env`, or as a team lead (see [Tracing with Langfuse](#tracing-with-langfuse)). To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `just hooks`, and run `just lint`. Run `just` alone to list every recipe.
+Langfuse's UI is on `http://localhost:3100`: sign in with `LANGFUSE_ADMIN_EMAIL` and `LANGFUSE_ADMIN_PASSWORD` from `.env`, or as a team lead (see [Tracing with Langfuse](#tracing-with-langfuse)). To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `just hooks`, and run `just lint`. `just demo-record` records the GIF again from [`docs/demo.tape`](docs/demo.tape), with [vhs](https://github.com/charmbracelet/vhs), ttyd and ffmpeg installed. Run `just` alone to list every recipe.
 
 ## Models and routing
 
@@ -363,14 +382,30 @@ Removing the fallback from `config/litellm.yaml` makes `test_fallback.py` fail w
 
 - [x] **1.1 Local gateway**: LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
 - [x] **1.2 Presidio anonymization**: pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
-- [ ] **1.3 Tracing and cost with Langfuse**: self-hosted Langfuse, cost per team, automated test proving traces hold no personal data.
+- [x] **1.3 Tracing and cost with Langfuse**: self-hosted Langfuse, cost per team, automated test proving traces hold no personal data.
 - [ ] **1.4 ADR, README and article 1**: why LiteLLM rather than a home-made or cloud gateway; demo GIF.
 
 Definition of done: a text with a name, an IBAN and an address goes in, the model only receives the anonymized version, and the answer comes back re-identified.
 
+## What I'd do next
+
+- **Close Presidio's known misses, and find the unknown ones.** City names without context and rare first names still get through (3 words in the leak test). The benchmark texts all come from the same templates, so the next step is texts of new kinds, such as real-looking leases and support tickets, with more leak tests, before tuning more rules.
+- **Measure how often the model breaks a marker.** `qwen2.5:1.5b` sometimes drops the angle brackets, and the value then stays masked in the answer. Count it over the benchmark, then match `PERSON_1` without brackets when putting values back.
+- **Stream without buffering the whole answer.** Put values back over a sliding window of a marker's length, so that the first tokens reach the caller at once.
+- **Shorten the worst-case failover.** A dead server costs the full 20 s timeout before the fallback. An active health check would take a dead server out of rotation before calls wait on it.
+- **Send the two marker fixes upstream** ([#42130](https://github.com/BerriAI/litellm/issues/42130), [#31959](https://github.com/BerriAI/litellm/issues/31959)), then delete `guardrails/presidio_markers.py`.
+- **Move to Kubernetes** in [`llmops-platform`](https://github.com/Mak5ens/llmops-platform): vLLM instead of Ollama, keys from a secret manager, managed databases for LiteLLM and Langfuse.
+
 ## Architecture decisions
 
-Repo-specific ADRs live in [`docs/adr/`](docs/adr/). Cross-cutting decisions (cloud, CI, Langfuse self-hosted, multi-repo layout) live in [`llmops-platform/docs/adr/`](https://github.com/Mak5ens/llmops-platform/tree/main/docs/adr).
+| ADR | Decision |
+| -- | -- |
+| [ADR-007](docs/adr/007-litellm-as-llm-gateway.md) | LiteLLM Proxy as the LLM gateway, rather than our own, Envoy AI Gateway, Kong or a SaaS |
+| [ADR-014](docs/adr/014-internal-price-for-self-hosted-models.md) | Budget self-hosted models with an internal price per token |
+| [ADR-015](docs/adr/015-presidio-marker-fixes.md) | Fix the numbered markers of LiteLLM's Presidio guardrail in a subclass |
+| [ADR-016](docs/adr/016-langfuse-project-per-team.md) | One Langfuse organization per team, provisioned in Langfuse's database |
+
+Cross-cutting decisions (cloud, CI, Langfuse self-hosted, multi-repo layout, Envoy Gateway) live in [`llmops-platform/docs/adr/`](https://github.com/Mak5ens/llmops-platform/tree/main/docs/adr).
 
 ## Part of an internal AI platform
 
