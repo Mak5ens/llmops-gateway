@@ -13,6 +13,10 @@ It runs on a laptop with Docker Compose and self-hosted models only: no prompt l
 
 *`just demo`: the lease team sends a message full of personal data. Recorded on a laptop CPU, model `qwen2.5:1.5b`.*
 
+![The same call in Langfuse, as the lease team's lead sees it: duration, cost, tokens and alias, one span per guardrail run, and input and output redacted](docs/langfuse-trace.png)
+
+*The same call in Langfuse, signed in as the lease team's lead: cost, tokens and alias are there, the messages are not.*
+
 | At a glance | Measured |
 | -- | -- |
 | French personal data fully masked, 100 annotated texts | 99.2 % with Presidio, against 82.7 % for `qwen2.5:7b` asked to do it ([benchmark](#how-well-it-works)) |
