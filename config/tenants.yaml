@@ -72,3 +72,22 @@ teams:
       secret_key_env: LANGFUSE_SECRET_KEY_BAUX
       viewer_email: baux-lead@llmops.local
       viewer_password_env: LANGFUSE_VIEWER_PASSWORD_BAUX
+
+  # Customer service assistant: drafts answers to customers, short and fast, on both chat aliases.
+  - team_id: support
+    team_alias: Customer service assistant
+    models: [chat-small, chat-large]
+    max_budget: 5
+    budget_duration: 30d
+    # Customers write with their name, address, phone number and bank details.
+    pii_masking: required
+    key:
+      key_alias: support-app
+      value_env: TEAM_KEY_SUPPORT
+      rpm_limit: 30
+      tpm_limit: 50000
+    langfuse:
+      public_key: pk-lf-support
+      secret_key_env: LANGFUSE_SECRET_KEY_SUPPORT
+      viewer_email: support-lead@llmops.local
+      viewer_password_env: LANGFUSE_VIEWER_PASSWORD_SUPPORT

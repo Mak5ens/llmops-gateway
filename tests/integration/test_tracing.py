@@ -79,13 +79,13 @@ def test_a_call_is_traced_to_the_project_of_its_team(team_client, team, alias):
 def test_a_streamed_call_is_priced_too(team_client):
     # A streamed call's trace carries the model behind the alias instead of the alias: it must get the same price.
     name = unique_name()
-    stream = team_client("baux").chat.completions.create(
+    stream = team_client("support").chat.completions.create(
         model="chat-large", messages=user("Bonjour"), stream=True, stream_options={"include_usage": True},
         extra_body={"metadata": {"generation_name": name}, "mock_response": "Bonjour !"},
     )
     usage = [chunk.usage for chunk in stream if chunk.usage][-1]
 
-    [generation] = traced("baux", name)
+    [generation] = traced("support", name)
     input_price, output_price = 0.0000005, 0.000002  # chat-large in config/litellm.yaml
     expected = usage.prompt_tokens * input_price + usage.completion_tokens * output_price
     assert generation["totalCost"] == pytest.approx(expected)
@@ -109,13 +109,13 @@ def test_traces_hold_no_message_and_no_personal_data(team_client):
     # keep the messages. The guardrail's own observation keeps the types and positions of what it masked.
     name = unique_name()
     mock = "Dossier de <PERSON_1>, virement sur <IBAN_CODE_3>."
-    response = call(team_client("baux"), "chat-large", name, DEMO, mock_response=mock).parse()
+    response = call(team_client("support"), "chat-large", name, DEMO, mock_response=mock).parse()
     assert "Marie Dupont" in response.choices[0].message.content
 
-    [generation] = traced("baux", name)
+    [generation] = traced("support", name)
     assert "redacted-by-litellm" in generation["input"]
     assert "redacted-by-litellm" in generation["output"]
-    trace = observations("baux", traceId=generation["traceId"])
+    trace = observations("support", traceId=generation["traceId"])
     for value in ("Marie", "Dupont", "rue de la Paix", "FR76", "06 12 34 56 78"):
         assert value not in json.dumps(trace)
     [guardrail] = [observation for observation in trace if observation["type"] == "GUARDRAIL"]

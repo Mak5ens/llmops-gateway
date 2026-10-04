@@ -34,7 +34,7 @@ def test_the_prompt_reaches_the_model_with_markers_only(admin: httpx.Client):
 
 def test_the_answer_comes_back_with_the_real_values(team_client):
     mock = "Dossier de <PERSON_1>, <FR_ADDRESS_2>, virement sur <IBAN_CODE_3>, joignable au <PHONE_NUMBER_4>."
-    assert answer(team_client("baux"), user(DEMO), mock) == (
+    assert answer(team_client("support"), user(DEMO), mock) == (
         "Dossier de Marie Dupont, 12 rue de la Paix, 75002 Paris, virement sur FR76 3000 6000 0112 3456 7890 189, "
         "joignable au 06 12 34 56 78."
     )
@@ -42,15 +42,15 @@ def test_the_answer_comes_back_with_the_real_values(team_client):
 
 def test_two_people_in_two_messages_get_two_markers(team_client):
     messages = [
-        {"role": "user", "content": "Le bailleur est Jean Martin."},
+        {"role": "user", "content": "Le client est Jean Martin."},
         {"role": "assistant", "content": "Noté."},
-        {"role": "user", "content": "La locataire est Marie Dupont."},
+        {"role": "user", "content": "La conseillère est Marie Dupont."},
     ]
-    assert answer(team_client("baux"), messages, "<PERSON_1> loue à <PERSON_2>.") == "Jean Martin loue à Marie Dupont."
+    assert answer(team_client("support"), messages, "<PERSON_1> écrit à <PERSON_2>.") == "Jean Martin écrit à Marie Dupont."
 
 
 def test_a_streamed_answer_is_put_back_too(team_client):
-    stream = team_client("baux").chat.completions.create(
+    stream = team_client("support").chat.completions.create(
         model="chat-large", messages=user(DEMO), stream=True, extra_body={"mock_response": "Bonjour <PERSON_1> !"}
     )
     chunks = [chunk.choices[0].delta.content or "" for chunk in stream if chunk.choices]
@@ -72,4 +72,4 @@ def test_an_opted_out_team_can_mask_one_request(team_client):
 def test_a_required_team_cannot_opt_out_from_the_request(team_client):
     # The opt-out is read from the team metadata written by the admin, not from what the caller sends.
     spoofed = {"user_api_key_team_metadata": {"opted_out_global_guardrails": ["pii-fr"]}, "disable_global_guardrails": True}
-    assert answer(team_client("baux"), user(DEMO), "Bonjour <PERSON_1> !", metadata=spoofed) == "Bonjour Marie Dupont !"
+    assert answer(team_client("support"), user(DEMO), "Bonjour <PERSON_1> !", metadata=spoofed) == "Bonjour Marie Dupont !"
