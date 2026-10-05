@@ -63,6 +63,12 @@ test-unit *args:
 gateway-bench *args: gateway-up
     uv run python benchmarks/run_bench.py "$@"
 
+# Measure what each layer of the Analyzer adds (official image, + French model, + French recognizers) into
+# benchmarks/steps.md, and the detections on the article's examples into benchmarks/steps_examples.json.
+# Starts two temporary Analyzers next to the stack; takes about a minute.
+presidio-steps: gateway-up
+    uv run python benchmarks/presidio_steps.py
+
 [private]
 _env:
     #!/usr/bin/env sh

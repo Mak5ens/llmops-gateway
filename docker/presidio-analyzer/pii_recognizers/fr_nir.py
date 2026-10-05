@@ -6,7 +6,7 @@ from presidio_analyzer import Pattern, PatternRecognizer
 class FrNirRecognizer(PatternRecognizer):
     """Recognize a NIR by its structure, then keep it only if its 2-digit key is right.
 
-    15 characters, often written `1 85 05 78 006 084 36`:
+    15 characters, often written `1 85 05 78 006 084 91`:
     sex (1, 2, or 3, 4, 7, 8 for temporary numbers), year, month (01-12, or 20-42 and 50-99 when unknown),
     birth place (department and town, 2A or 2B in Corsica), order number, key.
     The key is 97 - (the first 13 digits mod 97), with 2A read as 19 and 2B as 18.
