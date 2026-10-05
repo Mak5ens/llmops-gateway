@@ -214,6 +214,16 @@ The choice holds for that call only. A team that always wants masking switches t
 
 **Where Presidio leaks** (4 items out of 508, listed in the results): a first name too rare for the INSEE list (*Alexandrie*) and city names without context. The first run left 31 items in clear: names without context, which spaCy misses; addresses split over two lines; and Mastercard numbers of the 2xxx range, which Presidio's card recognizer does not know. `FrPersonRecognizer`, `CardRecognizer` and a fix to `FrAddressRecognizer` took fully masked items from 93.9 % to 99.2 %, and precision from 86.5 % to 88.1 %. On a held-out set generated with another seed, never used to tune the rules, the same changes took them from 94.1 % to 99.4 % (both sets come from the same templates: this checks new names and numbers, not new kinds of text).
 
+**What each layer adds.** `just presidio-steps` runs the same 100 texts through Presidio out of the box, then with the French spaCy model, then with the French recognizers ([`benchmarks/steps.md`](benchmarks/steps.md)):
+
+| Analyzer | Fully masked | Items left in clear |
+| -- | -- | -- |
+| Official image (English model, stock recognizers) | 59.1 % | 208 |
+| + French spaCy model | 72.8 % | 138 |
+| + French recognizers (this gateway) | 99.2 % | 4 |
+
+The French model finds the cities and most names. Addresses, NIRs and tax numbers have no stock recognizer at all, and French phone numbers without `+33` and 2-series Mastercard numbers slip through the stock ones.
+
 The guardrail adds 10 ms per request (p50, 14.8 ms instead of 4.8 ms).
 
 ### Proof that nothing else leaks

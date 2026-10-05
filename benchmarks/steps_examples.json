@@ -1,0 +1,579 @@
+{
+ "letter": {
+  "text": "Camille Roussel\n8 allée des Tilleuls\n33000 Bordeaux\n\nBonjour,\n\nJe vous écris au sujet du remboursement de soins de ma mère, Mme Josiane Roussel. Son numéro de sécurité sociale est le 2 52 07 33 063 112 03 et son numéro fiscal le 30 23 217 600 053.\n\nLe remboursement peut partir sur le compte FR76 3000 6000 0112 3456 7890 189, ou sur la carte 2221 0000 1234 5673.\n\nVous pouvez me joindre au 06 12 34 56 78 ou à camille.roussel@example.fr.\n\nCordialement,\nCamille",
+  "stock": [
+   {
+    "type": "PERSON",
+    "start": 0,
+    "end": 15,
+    "text": "Camille Roussel",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 124,
+    "end": 143,
+    "text": "Mme Josiane Roussel",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "IBAN_CODE",
+    "start": 292,
+    "end": 325,
+    "text": "FR76 3000 6000 0112 3456 7890 189",
+    "score": 1.0,
+    "recognizer": "IbanRecognizer",
+    "original_score": 0.5,
+    "context_word": null,
+    "checksum": true
+   },
+   {
+    "type": "PERSON",
+    "start": 380,
+    "end": 396,
+    "text": "joindre au 06 12",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PHONE_NUMBER",
+    "start": 391,
+    "end": 405,
+    "text": "06 12 34 56 78",
+    "score": 0.4,
+    "recognizer": "PhoneRecognizer",
+    "original_score": 0.4,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "EMAIL_ADDRESS",
+    "start": 411,
+    "end": 437,
+    "text": "camille.roussel@example.fr",
+    "score": 1.0,
+    "recognizer": "EmailRecognizer",
+    "original_score": 0.5,
+    "context_word": null,
+    "checksum": true
+   },
+   {
+    "type": "LOCATION",
+    "start": 440,
+    "end": 452,
+    "text": "Cordialement",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 454,
+    "end": 461,
+    "text": "Camille",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   }
+  ],
+  "fr-model": [
+   {
+    "type": "PERSON",
+    "start": 0,
+    "end": 15,
+    "text": "Camille Roussel",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 124,
+    "end": 143,
+    "text": "Mme Josiane Roussel",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "IBAN_CODE",
+    "start": 292,
+    "end": 325,
+    "text": "FR76 3000 6000 0112 3456 7890 189",
+    "score": 1.0,
+    "recognizer": "IbanRecognizer",
+    "original_score": 0.5,
+    "context_word": null,
+    "checksum": true
+   },
+   {
+    "type": "LOCATION",
+    "start": 292,
+    "end": 296,
+    "text": "FR76",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PHONE_NUMBER",
+    "start": 391,
+    "end": 405,
+    "text": "06 12 34 56 78",
+    "score": 0.4,
+    "recognizer": "PhoneRecognizer",
+    "original_score": 0.4,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "EMAIL_ADDRESS",
+    "start": 411,
+    "end": 437,
+    "text": "camille.roussel@example.fr",
+    "score": 1.0,
+    "recognizer": "EmailRecognizer",
+    "original_score": 0.5,
+    "context_word": null,
+    "checksum": true
+   },
+   {
+    "type": "PERSON",
+    "start": 454,
+    "end": 461,
+    "text": "Camille",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   }
+  ],
+  "gateway": [
+   {
+    "type": "PERSON",
+    "start": 0,
+    "end": 15,
+    "text": "Camille Roussel",
+    "score": 1.0,
+    "recognizer": "FrPersonRecognizer",
+    "original_score": 0.85,
+    "context_word": "ami",
+    "checksum": null
+   },
+   {
+    "type": "FR_ADDRESS",
+    "start": 16,
+    "end": 51,
+    "text": "8 allée des Tilleuls\n33000 Bordeaux",
+    "score": 0.6,
+    "recognizer": "FrAddressRecognizer",
+    "original_score": 0.6,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 124,
+    "end": 143,
+    "text": "Mme Josiane Roussel",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "FR_NIR",
+    "start": 183,
+    "end": 204,
+    "text": "2 52 07 33 063 112 03",
+    "score": 1.0,
+    "recognizer": "FrNirRecognizer",
+    "original_score": 0.3,
+    "context_word": "sécurité",
+    "checksum": true
+   },
+   {
+    "type": "FR_FISCAL_NUMBER",
+    "start": 229,
+    "end": 246,
+    "text": "30 23 217 600 053",
+    "score": 1.0,
+    "recognizer": "FrFiscalNumberRecognizer",
+    "original_score": 0.3,
+    "context_word": "fiscal",
+    "checksum": true
+   },
+   {
+    "type": "IBAN_CODE",
+    "start": 292,
+    "end": 325,
+    "text": "FR76 3000 6000 0112 3456 7890 189",
+    "score": 1.0,
+    "recognizer": "IbanRecognizer",
+    "original_score": 0.5,
+    "context_word": "compte",
+    "checksum": true
+   },
+   {
+    "type": "LOCATION",
+    "start": 292,
+    "end": 296,
+    "text": "FR76",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "CREDIT_CARD",
+    "start": 343,
+    "end": 362,
+    "text": "2221 0000 1234 5673",
+    "score": 1.0,
+    "recognizer": "CardRecognizer",
+    "original_score": 0.3,
+    "context_word": "carte",
+    "checksum": true
+   },
+   {
+    "type": "PHONE_NUMBER",
+    "start": 391,
+    "end": 405,
+    "text": "06 12 34 56 78",
+    "score": 0.75,
+    "recognizer": "PhoneRecognizer",
+    "original_score": 0.4,
+    "context_word": "joindre",
+    "checksum": null
+   },
+   {
+    "type": "EMAIL_ADDRESS",
+    "start": 411,
+    "end": 437,
+    "text": "camille.roussel@example.fr",
+    "score": 1.0,
+    "recognizer": "EmailRecognizer",
+    "original_score": 0.5,
+    "context_word": null,
+    "checksum": true
+   },
+   {
+    "type": "PERSON",
+    "start": 454,
+    "end": 461,
+    "text": "Camille",
+    "score": 1.0,
+    "recognizer": "FrPersonRecognizer",
+    "original_score": 0.85,
+    "context_word": "ami",
+    "checksum": null
+   }
+  ]
+ },
+ "message": {
+  "text": "Salut Anaïs, le Docteur Camus a validé l'arrêt. Tu peux le déposer chez Étienne avant vendredi ? Sinon appelle-moi au 01 46 39 90 88. Bises, Olivier",
+  "stock": [
+   {
+    "type": "PERSON",
+    "start": 0,
+    "end": 11,
+    "text": "Salut Anaïs",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "LOCATION",
+    "start": 97,
+    "end": 120,
+    "text": "Sinon appelle-moi au 01",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 141,
+    "end": 148,
+    "text": "Olivier",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   }
+  ],
+  "fr-model": [
+   {
+    "type": "PERSON",
+    "start": 141,
+    "end": 148,
+    "text": "Olivier",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   }
+  ],
+  "gateway": [
+   {
+    "type": "PERSON",
+    "start": 6,
+    "end": 11,
+    "text": "Anaïs",
+    "score": 0.65,
+    "recognizer": "FrPersonRecognizer",
+    "original_score": 0.3,
+    "context_word": "salut",
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 24,
+    "end": 29,
+    "text": "Camus",
+    "score": 1.0,
+    "recognizer": "FrPersonRecognizer",
+    "original_score": 0.85,
+    "context_word": "salut",
+    "checksum": null
+   },
+   {
+    "type": "PHONE_NUMBER",
+    "start": 118,
+    "end": 132,
+    "text": "01 46 39 90 88",
+    "score": 0.75,
+    "recognizer": "PhoneRecognizer",
+    "original_score": 0.4,
+    "context_word": "appel",
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 141,
+    "end": 148,
+    "text": "Olivier",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   }
+  ]
+ },
+ "form": {
+  "text": "Nom : Buisson\nPrénom : Hortense\nAdresse : 21 rue Jean Moulin\n74000 Annecy\nN° de sécurité sociale : 1 85 05 78 006 084 91\nTéléphone : 04 50 12 34 56",
+  "stock": [
+   {
+    "type": "PERSON",
+    "start": 23,
+    "end": 39,
+    "text": "Hortense\nAdresse",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 49,
+    "end": 60,
+    "text": "Jean Moulin",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "LOCATION",
+    "start": 67,
+    "end": 73,
+    "text": "Annecy",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PHONE_NUMBER",
+    "start": 133,
+    "end": 147,
+    "text": "04 50 12 34 56",
+    "score": 0.75,
+    "recognizer": "PhoneRecognizer",
+    "original_score": 0.4,
+    "context_word": "phone",
+    "checksum": null
+   }
+  ],
+  "fr-model": [
+   {
+    "type": "PERSON",
+    "start": 6,
+    "end": 20,
+    "text": "Buisson\nPrénom",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 23,
+    "end": 39,
+    "text": "Hortense\nAdresse",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "LOCATION",
+    "start": 67,
+    "end": 73,
+    "text": "Annecy",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PHONE_NUMBER",
+    "start": 133,
+    "end": 147,
+    "text": "04 50 12 34 56",
+    "score": 0.75,
+    "recognizer": "PhoneRecognizer",
+    "original_score": 0.4,
+    "context_word": "phone",
+    "checksum": null
+   }
+  ],
+  "gateway": [
+   {
+    "type": "PERSON",
+    "start": 6,
+    "end": 20,
+    "text": "Buisson\nPrénom",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 23,
+    "end": 31,
+    "text": "Hortense",
+    "score": 1.0,
+    "recognizer": "FrPersonRecognizer",
+    "original_score": 0.85,
+    "context_word": "prénom",
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 23,
+    "end": 39,
+    "text": "Hortense\nAdresse",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "FR_ADDRESS",
+    "start": 42,
+    "end": 73,
+    "text": "21 rue Jean Moulin\n74000 Annecy",
+    "score": 0.95,
+    "recognizer": "FrAddressRecognizer",
+    "original_score": 0.6,
+    "context_word": "adresse",
+    "checksum": null
+   },
+   {
+    "type": "PERSON",
+    "start": 49,
+    "end": 60,
+    "text": "Jean Moulin",
+    "score": 0.6,
+    "recognizer": "FrPersonRecognizer",
+    "original_score": 0.6,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "LOCATION",
+    "start": 67,
+    "end": 73,
+    "text": "Annecy",
+    "score": 0.85,
+    "recognizer": "SpacyRecognizer",
+    "original_score": 0.85,
+    "context_word": null,
+    "checksum": null
+   },
+   {
+    "type": "FR_NIR",
+    "start": 99,
+    "end": 120,
+    "text": "1 85 05 78 006 084 91",
+    "score": 1.0,
+    "recognizer": "FrNirRecognizer",
+    "original_score": 0.3,
+    "context_word": "sécurité",
+    "checksum": true
+   },
+   {
+    "type": "PHONE_NUMBER",
+    "start": 133,
+    "end": 147,
+    "text": "04 50 12 34 56",
+    "score": 0.75,
+    "recognizer": "PhoneRecognizer",
+    "original_score": 0.4,
+    "context_word": "téléphon",
+    "checksum": null
+   }
+  ]
+ }
+}

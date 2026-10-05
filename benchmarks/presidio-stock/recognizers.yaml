@@ -1,0 +1,27 @@
+# Recognizers of Presidio out of the box, for the French model step of benchmarks/presidio_steps.py: the stock
+# recognizers that the gateway also uses, without the French ones of docker/presidio-analyzer/pii_recognizers/.
+# Compare with config/presidio/recognizers.yaml.
+supported_languages:
+  - fr
+  - en
+global_regex_flags: 26
+
+recognizers:
+  - name: IbanRecognizer
+    type: predefined
+  - name: PhoneRecognizer
+    type: predefined
+  - name: CreditCardRecognizer
+    type: predefined
+  - name: CryptoRecognizer
+    type: predefined
+  - name: DateRecognizer
+    type: predefined
+  - name: EmailRecognizer
+    type: predefined
+  - name: IpRecognizer
+    type: predefined
+  - name: UrlRecognizer
+    type: predefined
+  - name: SpacyRecognizer
+    type: predefined
