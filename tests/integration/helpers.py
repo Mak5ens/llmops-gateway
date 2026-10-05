@@ -25,7 +25,7 @@ PRESIDIO_ANONYMIZER_URL = f"http://localhost:{os.environ.get('PRESIDIO_ANONYMIZE
 LANGFUSE_URL = f"http://localhost:{os.environ.get('LANGFUSE_PORT', '3100')}"
 LANGFUSE_KEYS = (os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
 LANGFUSE_ADMIN = (os.environ["LANGFUSE_ADMIN_EMAIL"], os.environ["LANGFUSE_ADMIN_PASSWORD"])
-TEAMS = ("f1", "mj", "baux")
+TEAMS = ("f1", "mj", "baux", "support")
 TEAM_KEYS = {team: os.environ[f"TEAM_KEY_{team.upper()}"] for team in TEAMS}
 # API keys of each Langfuse project: Gateway, then one per team (config/tenants.yaml).
 LANGFUSE_PROJECT_KEYS = {"gateway": LANGFUSE_KEYS} | {

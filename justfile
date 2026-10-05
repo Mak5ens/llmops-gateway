@@ -42,7 +42,7 @@ gateway-logs:
 smoke: _env
     uv run pytest tests/integration/test_routing.py
 
-# Send a message with personal data as the lease team, and show what the model, the team and Langfuse each see
+# Send a message with personal data as the customer service team, and show what the model, the team and Langfuse each see
 demo: _env
     @uv run python scripts/demo.py
 

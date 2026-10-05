@@ -1,6 +1,6 @@
 """Demo of the gateway, as a client team sees it: `just demo`.
 
-The lease team `baux` sends a message full of personal data, the model only gets markers, the answer comes back with
+The customer service team `support` sends a message full of personal data, the model only gets markers, the answer comes back with
 the real values, and the trace in Langfuse holds the team, the tokens and the cost, but no personal data.
 """
 
@@ -21,19 +21,19 @@ load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
 GATEWAY_URL = f"http://localhost:{os.environ.get('LITELLM_PORT', '4000')}"
 LANGFUSE_URL = f"http://localhost:{os.environ.get('LANGFUSE_PORT', '3100')}"
-TEAM, ALIAS = "baux", "chat-large"
+TEAM, ALIAS = "support", "chat-large"
 MESSAGE = (
-    "Bonjour, je suis Marie Dupont, locataire au 12 rue de la Paix, 75002 Paris. "
-    "Mon loyer sera désormais prélevé sur le compte FR76 3000 6000 0112 3456 7890 189. "
+    "Bonjour, je suis Marie Dupont. Ma commande n'est jamais arrivée au 12 rue de la Paix, 75002 Paris. "
+    "Pouvez-vous me rembourser sur le compte FR76 3000 6000 0112 3456 7890 189 ? "
     "Vous pouvez me joindre au 06 12 34 56 78."
 )
 TASK = (
-    "Rédige un accusé de réception en deux phrases, "
-    "qui reprend le nom de la locataire, son adresse et le nouveau compte."
+    "Écris la réponse du service client en deux phrases courtes : "
+    "Bonjour suivi du nom de la cliente, puis la confirmation du remboursement sur son compte."
 )
 # Small models sometimes drop the angle brackets, and a marker that does not match stays in the answer.
 SYSTEM = (
-    "Tu es l'assistant d'une agence immobilière. "
+    "Tu es l'assistant d'un service client. "
     "Recopie les marqueurs entre chevrons tels quels, par exemple <PERSON_1>."
 )
 

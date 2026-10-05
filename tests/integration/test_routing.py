@@ -14,6 +14,6 @@ def test_chat_alias_answers(team_client, alias):
 
 
 def test_embed_alias_returns_768_dimensions(team_client):
-    response = team_client("f1").embeddings.create(model="embed", input="Le locataire a payé son loyer en retard.")
+    response = team_client("f1").embeddings.create(model="embed", input="Ma commande est arrivée avec trois jours de retard.")
 
     assert len(response.data[0].embedding) == 768

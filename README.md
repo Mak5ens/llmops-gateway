@@ -11,11 +11,11 @@ It runs on a laptop with Docker Compose and self-hosted models only: no prompt l
 
 ![Demo: a message with a name, an address, an IBAN and a phone number goes through the gateway; the model only gets markers, the answer comes back with the real values, and the Langfuse trace holds the cost but no personal data](docs/demo.gif)
 
-*`just demo`: the lease team sends a message full of personal data. Recorded on a laptop CPU, model `qwen2.5:1.5b`.*
+*`just demo`: a customer writes to the customer service team with her name, address, IBAN and phone number. Recorded on CPU (i7-14700KF), model `qwen2.5:1.5b`.*
 
-![The same call in Langfuse, as the lease team's lead sees it: duration, cost, tokens and alias, one span per guardrail run, and input and output redacted](docs/langfuse-trace.png)
+![The same call in Langfuse, as the customer service team's lead sees it: duration, cost, tokens and alias, one span per guardrail run, and input and output redacted](docs/langfuse-trace.png)
 
-*The same call in Langfuse, signed in as the lease team's lead: cost, tokens and alias are there, the messages are not.*
+*The same call in Langfuse, signed in as the customer service team's lead: cost, tokens and alias are there, the messages are not.*
 
 | At a glance | Measured |
 | -- | -- |
@@ -92,7 +92,7 @@ from openai import OpenAI
 
 client = OpenAI(base_url="http://localhost:4000", api_key="sk-local-dev-team-f1")
 client.chat.completions.create(model="chat-small", messages=[{"role": "user", "content": "Hello"}])
-client.embeddings.create(model="embed", input="Le locataire a payé son loyer en retard.")
+client.embeddings.create(model="embed", input="Ma commande est arrivée avec trois jours de retard.")
 ```
 
 Langfuse's UI is on `http://localhost:3100`: sign in with `LANGFUSE_ADMIN_EMAIL` and `LANGFUSE_ADMIN_PASSWORD` from `.env`, or as a team lead (see [Tracing with Langfuse](#tracing-with-langfuse)). To contribute, install the git hooks (requires [pre-commit](https://pre-commit.com/)) with `just hooks`, and run `just lint`. `just demo-record` records the GIF again from [`docs/demo.tape`](docs/demo.tape), with [vhs](https://github.com/charmbracelet/vhs), ttyd and ffmpeg installed. Run `just` alone to list every recipe.
@@ -108,7 +108,7 @@ Teams call **usage aliases**, never model names. The platform decides which mode
 | `embed` | Embeddings, multilingual (French included), 768 dimensions | `granite-embedding:278m` | `ollama` | 30 s |
 
 **Fallback.** If `chat-large` fails or times out, the gateway answers with `chat-small`. The response header `x-litellm-model-group` says which alias actually served the call, and the logs show `Falling back to model_group = chat-small`.
-Measured with `just test -k fallback` on a laptop CPU:
+Measured with `just test -k fallback` on CPU (i7-14700KF):
 
 | Situation | Time to answer through `chat-small` |
 | -- | -- |
@@ -137,10 +137,11 @@ The master key stays with the platform team: it creates teams and keys, and no a
 | `f1` | F1 strategy analyst (agent with RAG) | `chat-small`, `chat-large`, `embed` | $10 / 30 days | 60 requests and 100k tokens per minute | Optional |
 | `mj` | Game master assistant | `chat-small`, `chat-large` | $5 / 30 days | 30 requests and 50k tokens per minute | Optional |
 | `baux` | Lease compliance checker | `chat-large`, `embed` | $5 / 30 days | 20 requests and 50k tokens per minute | Required |
+| `support` | Customer service assistant | `chat-small`, `chat-large` | $5 / 30 days | 30 requests and 50k tokens per minute | Required |
 
 `just gateway-up` applies the file through [`scripts/bootstrap_tenants.py`](scripts/bootstrap_tenants.py), and `just tenants` applies it again after an edit, without restarting anything.
 The script is idempotent: it creates what is missing, updates what exists, and never deletes a team.
-Key values come from `.env` (`TEAM_KEY_F1`, `TEAM_KEY_MJ`, `TEAM_KEY_BAUX`); on the cluster they will come from a secret manager.
+Key values come from `.env` (`TEAM_KEY_F1`, `TEAM_KEY_MJ`, `TEAM_KEY_BAUX`, `TEAM_KEY_SUPPORT`); on the cluster they will come from a secret manager.
 
 A team that steps out of its limits gets an explicit error, and only that team is blocked:
 
@@ -157,19 +158,19 @@ The budget blocks the call right after the one that crossed it: LiteLLM counts s
 
 ## Personal data anonymization (Presidio)
 
-The gateway masks French personal data before the model sees it, and puts it back into the answer. On a `baux` request, as sent to Ollama (LiteLLM debug log):
+The gateway masks French personal data before the model sees it, and puts it back into the answer. On a `support` request, as sent to Ollama (LiteLLM debug log):
 
 | Step | Text |
 | -- | -- |
-| Caller sends | *Le bailleur est Jean Martin, domicilié au 12 rue de la Paix, 75002 Paris.* then *La locataire est Marie Dupont, IBAN FR76 3000 6000 0112 3456 7890 189. Jean Martin est-il joignable ?* |
-| Model receives | *Le bailleur est `<PERSON_1>`, domicilié au `<FR_ADDRESS_2>`.* then *La locataire est `<PERSON_3>`, `<IBAN_CODE_4>`. `<PERSON_1>` est-il joignable ?* |
+| Caller sends | *Le client est Jean Martin, domicilié au 12 rue de la Paix, 75002 Paris.* then *Sa commande est au nom de Marie Dupont, IBAN FR76 3000 6000 0112 3456 7890 189. Jean Martin est-il joignable ?* |
+| Model receives | *Le client est `<PERSON_1>`, domicilié au `<FR_ADDRESS_2>`.* then *Sa commande est au nom de `<PERSON_3>`, `<IBAN_CODE_4>`. `<PERSON_1>` est-il joignable ?* |
 | Caller gets | The model's answer, with every marker replaced by its value |
 
 ### The pii-fr guardrail
 
-The guardrail is LiteLLM's [Presidio integration](https://docs.litellm.ai/docs/proxy/guardrails/pii_masking_v2), set up in [`config/litellm.yaml`](config/litellm.yaml): French analysis, the entities to mask (names, places, addresses, emails, phones, IBAN, cards, crypto wallets, IP addresses, NIR, tax numbers) and a score threshold of 0.4. Dates stay in clear: a lease cannot be checked without them, and they identify nobody on their own.
+The guardrail is LiteLLM's [Presidio integration](https://docs.litellm.ai/docs/proxy/guardrails/pii_masking_v2), set up in [`config/litellm.yaml`](config/litellm.yaml): French analysis, the entities to mask (names, places, addresses, emails, phones, IBAN, cards, crypto wallets, IP addresses, NIR, tax numbers) and a score threshold of 0.4. Dates stay in clear: an order or a delivery cannot be handled without them, and they identify nobody on their own.
 
-**Two fixes to LiteLLM's markers.** LiteLLM 1.83.14 numbers markers in a way that breaks on real French text, as tested on this stack: overlapping detections (an address and the city inside it) were spliced into `FR_ADDRESS_2ON_4`, and two people in two messages both became `<PERSON_1>`, so the answer named the tenant as the landlord. Both bugs are open upstream ([#42130](https://github.com/BerriAI/litellm/issues/42130), [#31959](https://github.com/BerriAI/litellm/issues/31959)). [`guardrails/presidio_markers.py`](guardrails/presidio_markers.py) subclasses LiteLLM's guardrail and overrides only the method that builds the markers: overlapping detections are merged into one, and numbers run across the request. See [ADR-015](docs/adr/015-presidio-marker-fixes.md).
+**Two fixes to LiteLLM's markers.** LiteLLM 1.83.14 numbers markers in a way that breaks on real French text, as tested on this stack: overlapping detections (an address and the city inside it) were spliced into `FR_ADDRESS_2ON_4`, and two people in two messages both became `<PERSON_1>`, so the answer put one person's name in place of the other's. Both bugs are open upstream ([#42130](https://github.com/BerriAI/litellm/issues/42130), [#31959](https://github.com/BerriAI/litellm/issues/31959)). [`guardrails/presidio_markers.py`](guardrails/presidio_markers.py) subclasses LiteLLM's guardrail and overrides only the method that builds the markers: overlapping detections are merged into one, and numbers run across the request. See [ADR-015](docs/adr/015-presidio-marker-fixes.md).
 
 **Per team.** Assigning a guardrail to a team is a LiteLLM Enterprise feature, so the gateway uses what the open-source version offers: `pii-fr` runs on every request (`default_on`), and a team set to `pii_masking: optional` in `config/tenants.yaml` is opted out through its metadata, which only the admin API writes. A required team cannot opt out from the request: metadata sent by the caller is ignored.
 
@@ -275,7 +276,7 @@ A pattern alone is not enough when a check digit exists: a match whose key is wr
 | `CREDIT_CARD` | `CardRecognizer` | Presidio's card recognizer plus the Mastercard 2-series (2221 to 2720), which it misses | Luhn check digit |
 | `URL` | `UrlOutsideEmailRecognizer` | Presidio's URL recognizer | No longer reports the domain of an email address |
 
-Context words raise a score when they appear in the 5 words before a match: in a lease, *domiciliée 12 rue de la Paix, 75002 Paris* scores 0.95 instead of 0.6, and *joignable au 06 12 34 56 78* 0.75 instead of 0.4.
+Context words raise a score when they appear in the 5 words before a match: in a letter, *domiciliée 12 rue de la Paix, 75002 Paris* scores 0.95 instead of 0.6, and *joignable au 06 12 34 56 78* 0.75 instead of 0.4.
 The spaCy model still makes mistakes of its own, measured in the [benchmark](#how-well-it-works): it misses city names without context and sometimes labels an email or `FR76` as a place. French dates (*12 mars 1985*) are not detected either; the guardrail does not mask dates anyway.
 
 Memory of the Analyzer, measured with `docker stats` after 30 requests:
@@ -287,7 +288,7 @@ Memory of the Analyzer, measured with `docker stats` after 30 requests:
 | `fr_core_news_lg` + `en_core_web_lg` (this stack) | 1.6 GiB |
 
 English costs 570 MiB more; it stays so that prompts in English, such as F1 data, are still analyzed. The container is limited to 2 GiB.
-It starts in about 6 seconds once the image is built, and analyzes a 30-word French sentence in about 6 ms on a laptop CPU.
+It starts in about 6 seconds once the image is built, and analyzes a 30-word French sentence in about 6 ms on CPU (i7-14700KF).
 
 ## Tracing with Langfuse
 
@@ -328,7 +329,7 @@ LiteLLM traces every call, successful or failed (level `ERROR`), a few seconds a
 
 | Field | Example |
 | -- | -- |
-| Team and key | `user_api_key_team_id: baux`, `user_api_key_team_alias: Lease compliance checker`, `user_api_key_alias: baux-app` |
+| Team and key | `user_api_key_team_id: support`, `user_api_key_team_alias: Customer service assistant`, `user_api_key_alias: support-app` |
 | Alias (the model of the trace) | `chat-large`; a streamed call or a fallback shows the model behind it instead, `qwen2.5:1.5b` |
 | Tokens | `input: 36, output: 3` |
 | Cost | `$0.000045`, the internal price of the alias (ADR-014): the same amount LiteLLM charged the team's budget and returned in `x-litellm-response-cost` |
@@ -336,7 +337,7 @@ LiteLLM traces every call, successful or failed (level `ERROR`), a few seconds a
 | What the guardrail masked | `masked_entity_count: {PERSON: 2, FR_ADDRESS: 1, IBAN_CODE: 1, PHONE_NUMBER: 1}`, types and positions only |
 | Messages | `redacted-by-litellm` |
 
-**No messages in the traces.** The `pii-fr` guardrail puts the real values back into the answer before LiteLLM logs it, so the first trace of a lease held `Bonjour Marie Dupont` in clear. And a team that opted out of masking can still send personal data. `turn_off_message_logging` in `config/litellm.yaml` removes the prompts and answers from every trace. LiteLLM's switch per team or per request is ignored by `langfuse_otel` in 1.83.14, so the setting is global. A caller can still name its calls with `metadata.generation_name` and group them with `metadata.session_id`.
+**No messages in the traces.** The `pii-fr` guardrail puts the real values back into the answer before LiteLLM logs it, so the very first trace held `Bonjour Marie Dupont` in clear. And a team that opted out of masking can still send personal data. `turn_off_message_logging` in `config/litellm.yaml` removes the prompts and answers from every trace. LiteLLM's switch per team or per request is ignored by `langfuse_otel` in 1.83.14, so the setting is global. A caller can still name its calls with `metadata.generation_name` and group them with `metadata.session_id`.
 
 **Cost.** Langfuse prices the tokens itself, from a price per alias in each project. `scripts/bootstrap_langfuse.py` creates those prices from the internal prices of `config/litellm.yaml`, so a price changes in one place: edit the file, then run `just gateway-reload` and `just tenants`. Each price also matches the model behind its alias, which streamed and fallback calls carry. After the whole test suite, the cost summed per project in Langfuse matched each team's spend in LiteLLM to the last digit ($0.00022764 for `baux`).
 
@@ -347,7 +348,7 @@ Each client team has its own organization and project in Langfuse, and LiteLLM s
 | Account | Sees | Role |
 | -- | -- | -- |
 | `LANGFUSE_ADMIN_EMAIL` (platform team) | Gateway and every team's project | Owner |
-| `f1-lead@llmops.local`, `mj-lead@llmops.local`, `baux-lead@llmops.local` | Its team's project only | Viewer |
+| `f1-lead@llmops.local`, `mj-lead@llmops.local`, `baux-lead@llmops.local`, `support-lead@llmops.local` | Its team's project only | Viewer |
 
 A team lead signs in with the password `LANGFUSE_VIEWER_PASSWORD_<TEAM>` from `.env`. They see their team's calls, costs per day and per alias, latency and errors. They do not see the gateway's keys and budgets, which stay in LiteLLM with the platform team.
 
@@ -367,10 +368,10 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 | -- | -- |
 | `test_routing.py` | Each alias answers, served by its own model (header `x-litellm-model-group`); `embed` returns 768 dimensions |
 | `test_tenants.py` | Allowed and refused aliases per team (401), rate limit (429), budget (400), isolation from other teams, idempotent bootstrap |
-| `test_pii_guardrail.py` | The prompt reaches the model with markers only, the answer (streamed or not) comes back with the real values, two people in two messages get two markers, `f1` is not masked unless it asks, `baux` cannot opt out from the request |
+| `test_pii_guardrail.py` | The prompt reaches the model with markers only, the answer (streamed or not) comes back with the real values, two people in two messages get two markers, `f1` is not masked unless it asks, `support` cannot opt out from the request |
 | `test_presidio.py` | The Analyzer finds every French identifier in a lease, context words raise the scores, no identifier comes out of ordinary numbers (amounts, dates, lap numbers), English still works; the Anonymizer replaces what was found |
 | `test_langfuse.py` | The UI answers, the Gateway project and its keys exist from the first start, a wrong key is refused, the admin can sign in and nobody can sign up, a span sent over OTLP is read back after going through S3, Redis, the worker and ClickHouse |
-| `test_tracing.py` | A call of each team (each alias) reaches its team's project and no other, with its team, key, alias, tokens, latency and the cost LiteLLM charged; a call without a team reaches Gateway; a failed call is traced as an error; a masked lease leaves no personal data in its trace; each lead sees their team's project only, as a viewer; a second bootstrap duplicates nothing |
+| `test_tracing.py` | A call of each team (each alias) reaches its team's project and no other, with its team, key, alias, tokens, latency and the cost LiteLLM charged; a call without a team reaches Gateway; a failed call is traced as an error; a masked customer message leaves no personal data in its trace; each lead sees their team's project only, as a viewer; a second bootstrap duplicates nothing |
 | `test_no_leak.py` | The 100 annotated texts of the benchmark reach the model with only the 3 words Presidio is known to miss, and leave no personal data in the Langfuse traces or in the logs of LiteLLM and Ollama |
 | `test_fallback.py` | With `ollama-large` stopped, `chat-large` is served by `chat-small` within 30 s and the logs show the fallback |
 

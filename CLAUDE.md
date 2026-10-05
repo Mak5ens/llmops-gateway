@@ -20,7 +20,7 @@ Routing lives in `config/litellm.yaml`: callers only use usage aliases (`chat-sm
 - `LITELLM_LOG=INFO` is what makes retries and fallbacks visible in the logs.
 - Every alias has `input_cost_per_token` / `output_cost_per_token`: LiteLLM knows no price for Ollama models, and without one spend stays at $0 so budgets never trigger (ADR-014). A new alias needs a price too.
 
-Client teams (`f1`, `mj`, `baux`) live in `config/tenants.yaml`: aliases allowed per team, budget per team, rpm/tpm limits per key. `scripts/bootstrap_tenants.py` applies the file through the LiteLLM admin API; it runs in the `tenants-bootstrap` one-shot service, which reuses the LiteLLM image. Things to keep in mind:
+Client teams (`f1`, `mj`, `baux`, `support`) live in `config/tenants.yaml`: aliases allowed per team, budget per team, rpm/tpm limits per key. `scripts/bootstrap_tenants.py` applies the file through the LiteLLM admin API; it runs in the `tenants-bootstrap` one-shot service, which reuses the LiteLLM image. Things to keep in mind:
 
 - The service sits in the `bootstrap` profile and runs with `docker compose run`, because `docker compose up --wait` fails on any container that exits, even with code 0, when no other service depends on it.
 - Key values come from `.env` (`TEAM_KEY_*`) and are set with the `key` field of `/key/generate`, which makes re-runs converge instead of creating new keys. Keys have no model list: they inherit their team's.
@@ -72,7 +72,7 @@ Tasks run with [just](https://just.systems/) (`justfile`, which loads `.env`); t
 - `just test-unit`: only `tests/unit/`, the recognizer and guardrail class tests; no stack needed, about 2 seconds.
 - `just gateway-bench`: start the stack, then benchmark the anonymization into `benchmarks/results.md` (about 30 minutes on CPU; `just gateway-bench --skip-llm` for Presidio and latency only, about 10 seconds).
 - `just smoke`: only `tests/integration/test_routing.py`, a quick check that every alias answers after `just gateway-reload`.
-- `just demo`: `scripts/demo.py`, one masked call of the `baux` team on `chat-large`, then its Langfuse trace; it is what the README's GIF shows. `just demo-record` records `docs/demo.gif` again from `docs/demo.tape` (needs vhs, ttyd and ffmpeg, and the stack up). Re-record after a change to the demo's output.
+- `just demo`: `scripts/demo.py`, one masked call of the `support` team (customer service) on `chat-large`, then its Langfuse trace; it is what the README's GIF shows. `just demo-record` records `docs/demo.gif` again from `docs/demo.tape` (needs vhs, ttyd and ffmpeg, and the stack up). Re-record after a change to the demo's output.
 - `just tenants`: apply `config/tenants.yaml` to the running gateway (also run by `just gateway-up`).
 - `just gateway-reload`: restart LiteLLM after a change to `config/litellm.yaml`.
 - `just gateway-down`: stop the stack; `just gateway-down --volumes` also deletes the databases, the Langfuse traces and the models.

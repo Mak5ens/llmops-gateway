@@ -68,7 +68,7 @@ guardrails:
       presidio_anonymizer_api_base: http://presidio-anonymizer:3000
       presidio_language: fr
       # Entities sent to the Analyzer. Dates (DATE_TIME), nationalities (NRP) and URLs are left in the prompt:
-      # the model needs dates to reason about a lease, and they identify nobody on their own.
+      # the model needs dates to reason about an order or a delivery, and they identify nobody on their own.
       pii_entities_config:
         PERSON: MASK
         LOCATION: MASK

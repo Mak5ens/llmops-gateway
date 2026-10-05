@@ -12,6 +12,7 @@ TEAM_ACCESS = [
     ("f1", "chat-small", None),
     ("mj", "chat-small", "embed"),
     ("baux", "embed", "chat-small"),
+    ("support", "chat-small", "embed"),
 ]
 
 
