@@ -25,7 +25,7 @@ It runs on a laptop with Docker Compose and self-hosted models only: no prompt l
 | Personal data in Langfuse traces and in the logs | none, checked on every PR |
 | Code of our own around LiteLLM | one 85-line guardrail class, two bootstrap scripts, two YAML files ([ADR-007](docs/adr/007-litellm-as-llm-gateway.md)) |
 
-> Status: block 1 is done: local gateway (1.1), Presidio anonymization (1.2), tracing and cost with Langfuse (1.3). The write-up (1.4) is in progress. See the [roadmap](#roadmap).
+> Status: block 1 is done: local gateway (1.1), Presidio anonymization (1.2), tracing and cost with Langfuse (1.3), ADR, README and write-up (1.4). Read the article: [*Anonymize before inference*](https://maxence-labbe.fr/en/articles/anonymize-before-inference/) ([français](https://maxence-labbe.fr/articles/anonymiser-avant-dinferer/)). See the [roadmap](#roadmap).
 
 ## Why
 
@@ -388,7 +388,7 @@ Removing the fallback from `config/litellm.yaml` makes `test_fallback.py` fail w
 - [x] **1.1 Local gateway**: LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
 - [x] **1.2 Presidio anonymization**: pre-call hook, French recognizers, re-identification. Benchmark of added latency and detection rate on 100 texts.
 - [x] **1.3 Tracing and cost with Langfuse**: self-hosted Langfuse, cost per team, automated test proving traces hold no personal data.
-- [ ] **1.4 ADR, README and article 1**: why LiteLLM rather than a home-made or cloud gateway; demo GIF.
+- [x] **1.4 ADR, README and article 1**: why LiteLLM rather than a home-made or cloud gateway; demo GIF.
 
 Definition of done: a text with a name, an IBAN and an address goes in, the model only receives the anonymized version, and the answer comes back re-identified.
 
@@ -420,7 +420,7 @@ Cross-cutting decisions (cloud, CI, Langfuse self-hosted, multi-repo layout, Env
 | [llmops-platform](https://github.com/Mak5ens/llmops-platform) | Block 2: Kubernetes in GitOps, vLLM autoscaling, GPU observability, costs |
 | [f1-strategy-analyst](https://github.com/Mak5ens/f1-strategy-analyst) | Block 3: first tenant, an agent with RAG and an evaluation CI |
 
-Write-up: article 1, *Anonymiser avant d'inférer : une gateway LLM conforme au RGPD*, coming on [maxence-labbe.fr](https://maxence-labbe.fr).
+Write-up: [*Anonymize before inference*](https://maxence-labbe.fr/en/articles/anonymize-before-inference/), on maxence-labbe.fr, also in [French](https://maxence-labbe.fr/articles/anonymiser-avant-dinferer/): the problem, the architecture, the measurements and the limits, for readers who will not open the code.
 
 ## License
 
