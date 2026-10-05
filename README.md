@@ -222,7 +222,7 @@ The choice holds for that call only. A team that always wants masking switches t
 | + French spaCy model | 72.8 % | 138 |
 | + French recognizers (this gateway) | 99.2 % | 4 |
 
-The French model finds the cities and most names. Addresses, NIRs and tax numbers have no stock recognizer at all, and French phone numbers without `+33` and 2-series Mastercard numbers slip through the stock ones.
+The French model finds the cities and most names. Addresses, NIRs and tax numbers have no stock recognizer at all, and French phone numbers without `+33` and 2-series Mastercard numbers slip through the stock ones. How each recognizer works, and what still gets through: [*Presidio, in French*](https://maxence-labbe.fr/en/articles/presidio-in-french/) ([français](https://maxence-labbe.fr/articles/presidio-en-francais/)).
 
 The guardrail adds 10 ms per request (p50, 14.8 ms instead of 4.8 ms).
 
@@ -430,7 +430,7 @@ Cross-cutting decisions (cloud, CI, Langfuse self-hosted, multi-repo layout, Env
 | [llmops-platform](https://github.com/Mak5ens/llmops-platform) | Block 2: Kubernetes in GitOps, vLLM autoscaling, GPU observability, costs |
 | [f1-strategy-analyst](https://github.com/Mak5ens/f1-strategy-analyst) | Block 3: first tenant, an agent with RAG and an evaluation CI |
 
-Write-up: [*Anonymize before inference*](https://maxence-labbe.fr/en/articles/anonymize-before-inference/), on maxence-labbe.fr, also in [French](https://maxence-labbe.fr/articles/anonymiser-avant-dinferer/): the problem, the architecture, the measurements and the limits, for readers who will not open the code.
+Write-up: [*Anonymize before inference*](https://maxence-labbe.fr/en/articles/anonymize-before-inference/), on maxence-labbe.fr, also in [French](https://maxence-labbe.fr/articles/anonymiser-avant-dinferer/): the problem, the architecture, the measurements and the limits, for readers who will not open the code. A second article, [*Presidio, in French*](https://maxence-labbe.fr/en/articles/presidio-in-french/) ([français](https://maxence-labbe.fr/articles/presidio-en-francais/)), opens up the French recognizers.
 
 ## License
 
