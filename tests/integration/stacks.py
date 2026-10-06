@@ -15,6 +15,8 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
+import httpx
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -136,12 +138,17 @@ class KubernetesStack:
 
     def _resume(self) -> None:
         self._reconcile(True)
-        # ArgoCD puts the workloads back as in Git, then reports the Application synced and healthy.
+        # The status ArgoCD shows still dates from before the pause: ask for a new comparison, wait until it is done
+        # (ArgoCD then removes the annotation), then until the workloads are back as in Git.
+        refresh = "argocd.argoproj.io/refresh"
+        self.kubectl("-n", "argocd", "annotate", "application", self.application, f"{refresh}=hard", "--overwrite")
         deadline = time.monotonic() + 300
         while time.monotonic() < deadline:
             app = json.loads(self.kubectl("-n", "argocd", "get", "application", self.application, "-o", "json"))
             status = app.get("status", {})
-            if status.get("sync", {}).get("status") == "Synced" and status.get("health", {}).get("status") == "Healthy":
+            if (refresh not in app["metadata"].get("annotations", {})
+                    and status.get("sync", {}).get("status") == "Synced"
+                    and status.get("health", {}).get("status") == "Healthy"):
                 return
             time.sleep(2)
         raise RuntimeError(f"Application {self.application} not synced and healthy after resuming")
@@ -154,12 +161,35 @@ class KubernetesStack:
 
     def restart(self, service: str) -> None:
         self._resume()
-        self.kubectl("rollout", "status", f"deployment/{service}", "--timeout=300s", namespace=True)
+        self.kubectl("wait", f"deployment/{service}", "--for=jsonpath={.status.readyReplicas}=1", "--timeout=300s",
+                     namespace=True)
 
     def logs(self, *services: str, since: str) -> str:
         """Logs of the services since an ISO timestamp or a duration like "60s"."""
         option = f"--since={since}" if since.endswith("s") and since[:-1].isdigit() else f"--since-time={since}"
-        return "".join(self.kubectl("logs", f"deployment/{service}", option, namespace=True) for service in services)
+        return "".join(self.kubectl("logs", pod, option, namespace=True) for service in services
+                       for pod in self.pods(service))
+
+    def pods(self, service: str) -> list[str]:
+        """Pods of a service, without the ones being deleted: after a restart, the old LiteLLM pod lingers for up to
+        90 s (its termination grace period), and `kubectl logs deployment/...` may pick it."""
+        found = json.loads(self.kubectl("get", "pods", "-l", f"app.kubernetes.io/name={service}", "-o", "json",
+                                        namespace=True))
+        return [f"pod/{pod['metadata']['name']}" for pod in found["items"] if "deletionTimestamp" not in pod["metadata"]]
+
+    def _wait_for_gateway(self) -> None:
+        """After LiteLLM restarts, Envoy keeps sending requests to the old pod for a few seconds: wait until ten
+        health checks in a row go through the Gateway to a live pod."""
+        deadline, in_a_row = time.monotonic() + 120, 0
+        while in_a_row < 10:
+            if time.monotonic() > deadline:
+                raise RuntimeError("LiteLLM does not answer steadily through the Gateway")
+            try:
+                ok = httpx.get(f"{self.gateway_url}/health/liveliness", timeout=5).status_code == 200
+            except httpx.HTTPError:
+                ok = False
+            in_a_row = in_a_row + 1 if ok else 0
+            time.sleep(0.5)
 
     @contextmanager
     def litellm_at_debug(self) -> Iterator[None]:
@@ -167,10 +197,12 @@ class KubernetesStack:
         try:
             self.kubectl("set", "env", "deployment/litellm", "LITELLM_LOG=DEBUG", namespace=True)
             self.kubectl("rollout", "status", "deployment/litellm", "--timeout=300s", namespace=True)
+            self._wait_for_gateway()
             yield
         finally:
             self._resume()
             self.kubectl("rollout", "status", "deployment/litellm", "--timeout=300s", namespace=True)
+            self._wait_for_gateway()
 
     def close(self) -> None:
         for forward in self._forwards:

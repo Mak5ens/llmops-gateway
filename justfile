@@ -54,6 +54,10 @@ demo-record:
 test *args: _env
     uv run pytest "$@"
 
+# Run the integration tests against the gateway deployed on Kubernetes by llmops-platform (context k3d-llmops, or KUBE_CONTEXT)
+test-cluster *args:
+    GATEWAY_STACK=kubernetes uv run pytest tests/integration "$@"
+
 # Run the unit tests of the Presidio recognizers and of the guardrail class: no stack, a few seconds
 test-unit *args:
     uv run pytest tests/unit "$@"

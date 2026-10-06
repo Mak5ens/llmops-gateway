@@ -393,6 +393,17 @@ The fallback test stops a container, and the leak test restarts LiteLLM at `DEBU
 CI runs the whole suite on every PR on a clean runner, with the same models as in development, in three parallel jobs: the unit tests (about 20 s), the integration tests (about 7.5 min) and the leak test (about 7.5 min). Each of the last two starts its own stack, which takes 3 to 4.5 minutes to download the models and build the Presidio Analyzer image; the 100 real calls of the leak test take about 4 minutes more, and in the main job they would bring it close to its 10-minute limit. A tiny model in CI was not worth it: it would need a CI-only LiteLLM configuration, and the tests would no longer check the real one.
 Removing the fallback from `config/litellm.yaml` makes `test_fallback.py` fail with a `500 APIConnectionError`, so a broken routing configuration cannot be merged.
 
+### On Kubernetes
+
+The same suite runs against the gateway deployed by [`llmops-platform`](https://github.com/Mak5ens/llmops-platform): `just test-cluster`, or `GATEWAY_STACK=kubernetes uv run pytest tests/integration` (context `k3d-llmops`, or `KUBE_CONTEXT`). The test code is the same; [`stacks.py`](tests/integration/stacks.py) gives it the same operations on both stacks:
+
+- settings come from the cluster's `gateway-env` Secret, with the variable names of `.env`;
+- LiteLLM and Langfuse are reached through the cluster's Gateway, on `https://llm.localtest.me` and `https://langfuse.localtest.me`, trusting its local certificate authority; Presidio, which has no route, through a port-forward;
+- the bootstrap runs again as a copy of the `tenants-bootstrap` Job;
+- to stop `ollama-large` or restart LiteLLM at `DEBUG`, the tests suspend ArgoCD's reconciliation of the `llm-gateway` Application, then let ArgoCD put everything back as in Git.
+
+The CI publishes the two images the platform deploys, from `main`, tagged `sha-<commit>`: `ghcr.io/mak5ens/llmops-gateway/presidio-analyzer` (with its configuration of `config/presidio/`) and `ghcr.io/mak5ens/llmops-gateway/litellm` (the official image plus the guardrail class and the bootstrap scripts).
+
 ## Roadmap
 
 - [x] **1.1 Local gateway**: LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.
@@ -409,7 +420,7 @@ Definition of done: a text with a name, an IBAN and an address goes in, the mode
 - **Stream without buffering the whole answer.** Put values back over a sliding window of a marker's length, so that the first tokens reach the caller at once.
 - **Shorten the worst-case failover.** A dead server costs the full 20 s timeout before the fallback. An active health check would take a dead server out of rotation before calls wait on it.
 - **Send the two marker fixes upstream** ([#42130](https://github.com/BerriAI/litellm/issues/42130), [#31959](https://github.com/BerriAI/litellm/issues/31959)), then delete `guardrails/presidio_markers.py`.
-- **Move to Kubernetes** in [`llmops-platform`](https://github.com/Mak5ens/llmops-platform): vLLM instead of Ollama, keys from a secret manager, managed databases for LiteLLM and Langfuse.
+- **Replace Ollama with vLLM** in [`llmops-platform`](https://github.com/Mak5ens/llmops-platform), where the gateway now runs on Kubernetes, with keys from a secret manager and PostgreSQL run by CloudNativePG.
 
 ## Architecture decisions
 
