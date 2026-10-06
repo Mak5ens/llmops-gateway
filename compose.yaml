@@ -105,7 +105,10 @@ services:
   # Detects personal data (names, places, emails, phone numbers...) in a text and returns their positions.
   # Built from the official image plus the French spaCy model: docker/presidio-analyzer/Dockerfile.
   presidio-analyzer:
-    build: docker/presidio-analyzer
+    build:
+      context: docker/presidio-analyzer
+      additional_contexts:
+        config: config/presidio
     image: llmops-gateway/presidio-analyzer:2.2.362-fr
     environment:
       # Gunicorn 25.1.0 starts a control socket thread, then forks the worker: the worker can inherit a held

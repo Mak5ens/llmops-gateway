@@ -1,28 +1,31 @@
 """Settings and helpers shared by the tests and their fixtures.
 
-Settings come from .env (created from .env.example when missing), as for `just gateway-up`.
+The tests run against the Compose stack (default) or the gateway deployed on Kubernetes (GATEWAY_STACK=kubernetes),
+see stacks.py. Compose settings come from .env (created from .env.example when missing), as for `just gateway-up`;
+Kubernetes settings from the cluster, with the same variable names.
 """
 
 import os
 import shutil
-import subprocess
-from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
 from openai import OpenAI
+from stacks import ROOT, KubernetesStack, from_environment
 
-ROOT = Path(__file__).resolve().parents[2]
+STACK = from_environment()
+if isinstance(STACK, KubernetesStack):
+    os.environ.update(STACK.settings())
+else:
+    if not (ROOT / ".env").exists():
+        shutil.copy(ROOT / ".env.example", ROOT / ".env")
+    load_dotenv(ROOT / ".env")
 
-if not (ROOT / ".env").exists():
-    shutil.copy(ROOT / ".env.example", ROOT / ".env")
-load_dotenv(ROOT / ".env")
-
-GATEWAY_URL = f"http://localhost:{os.environ.get('LITELLM_PORT', '4000')}"
+GATEWAY_URL = STACK.gateway_url
 MASTER_KEY = os.environ["LITELLM_MASTER_KEY"]
-PRESIDIO_ANALYZER_URL = f"http://localhost:{os.environ.get('PRESIDIO_ANALYZER_PORT', '5002')}"
-PRESIDIO_ANONYMIZER_URL = f"http://localhost:{os.environ.get('PRESIDIO_ANONYMIZER_PORT', '5001')}"
-LANGFUSE_URL = f"http://localhost:{os.environ.get('LANGFUSE_PORT', '3100')}"
+PRESIDIO_ANALYZER_URL = STACK.presidio_analyzer_url
+PRESIDIO_ANONYMIZER_URL = STACK.presidio_anonymizer_url
+LANGFUSE_URL = STACK.langfuse_url
 LANGFUSE_KEYS = (os.environ["LANGFUSE_PUBLIC_KEY"], os.environ["LANGFUSE_SECRET_KEY"])
 LANGFUSE_ADMIN = (os.environ["LANGFUSE_ADMIN_EMAIL"], os.environ["LANGFUSE_ADMIN_PASSWORD"])
 TEAMS = ("f1", "mj", "baux", "support")
@@ -35,13 +38,9 @@ LANGFUSE_PROJECT_KEYS = {"gateway": LANGFUSE_KEYS} | {
 LANGFUSE_LEADS = {team: (f"{team}-lead@llmops.local", os.environ[f"LANGFUSE_VIEWER_PASSWORD_{team.upper()}"]) for team in TEAMS}
 
 
-def compose(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["docker", "compose", *args], cwd=ROOT, check=True, capture_output=True, text=True)
-
-
 def run_bootstrap() -> str:
     """Apply config/tenants.yaml, as `just tenants` does, and return what the script printed."""
-    return compose("run", "--rm", "--no-deps", "tenants-bootstrap").stdout
+    return STACK.bootstrap()
 
 
 def client_for(key: str) -> OpenAI:
