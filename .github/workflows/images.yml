@@ -12,6 +12,7 @@ permissions:
 
 jobs:
   image:
+    name: image (${{ matrix.name }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
