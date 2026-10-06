@@ -17,10 +17,9 @@ import re
 import time
 import uuid
 from datetime import UTC, datetime
-from pathlib import Path
 
 import pytest
-from helpers import ROOT, compose
+from helpers import ROOT, STACK
 from openai import OpenAI
 from test_pii_guardrail import user
 from test_tracing import observations
@@ -30,7 +29,6 @@ ROWS = [json.loads(line) for line in (ROOT / "benchmarks" / "dataset.jsonl").rea
 # 3 minutes on a GitHub runner, which would bring the main job close to its 10-minute limit.
 pytestmark = pytest.mark.leak
 
-DEBUG_OVERRIDE = Path(__file__).with_name("compose.litellm-debug.yaml")
 # What Presidio leaves in clear ("What Presidio left in clear" in benchmarks/results.md): (text, word).
 # "Alexandrie" is taken for the city, so the first name is masked as a LOCATION and the surname stays.
 # A change to the recognizers that masks one of them, or misses a new one, must update this list.
@@ -85,9 +83,8 @@ def masked_team(temp_team: str, new_key) -> OpenAI:
 
 @pytest.fixture
 def litellm_at_debug():
-    compose("-f", "compose.yaml", "-f", str(DEBUG_OVERRIDE), "up", "--detach", "--wait", "litellm")
-    yield
-    compose("up", "--detach", "--wait", "litellm")
+    with STACK.litellm_at_debug():
+        yield
 
 
 @pytest.mark.disruptive
@@ -99,7 +96,7 @@ def test_the_model_receives_only_the_known_misses(masked_team, request):
     for row in ROWS:
         masked_team.chat.completions.create(model="chat-small", messages=user(row["text"]), max_tokens=1)
 
-    log = compose("logs", "--no-log-prefix", "--since", since, "litellm").stdout
+    log = STACK.logs("litellm", since=since)
     lines = [line.strip() for line in log.splitlines()]
     bodies = [ast.literal_eval(line[len("-d '") : -1]) for line in lines if line.startswith(BODY_PREFIX)]
     assert len(bodies) == len(ROWS), "LiteLLM's DEBUG log no longer shows one body per call"
@@ -127,7 +124,7 @@ def test_traces_and_logs_hold_no_personal_data(masked_team):
         assert time.monotonic() < deadline, f"{len(generations)} traces of {len(ROWS)} calls reached Langfuse"
         time.sleep(2)
     traces = json.dumps([observations("gateway", traceId=g["traceId"]) for g in generations], ensure_ascii=False)
-    logs = compose("logs", "--no-log-prefix", "--since", since, "litellm", "ollama").stdout
+    logs = STACK.logs("litellm", "ollama", since=since)
 
     found = {(where, *leak) for where, text in (("traces", traces), ("logs", logs)) for row in ROWS
              for leak in values_and_words_in(row, text)}

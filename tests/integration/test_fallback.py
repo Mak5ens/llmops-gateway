@@ -7,7 +7,7 @@ that then disappears.
 import time
 
 import pytest
-from helpers import ask, compose
+from helpers import STACK, ask
 
 # chat-large timeout (20 s in config/litellm.yaml), then the answer from chat-small.
 MAX_SECONDS = 30
@@ -15,9 +15,9 @@ MAX_SECONDS = 30
 
 @pytest.fixture
 def chat_large_outage():
-    compose("stop", "ollama-large")
+    STACK.stop("ollama-large")
     yield
-    compose("up", "--detach", "--wait", "ollama-large")
+    STACK.restart("ollama-large")
 
 
 @pytest.mark.disruptive
@@ -33,4 +33,4 @@ def test_chat_large_falls_back_to_chat_small(team_client, request):
     assert raw.parse().choices[0].message.content.strip()
     assert raw.headers["x-litellm-model-group"] == "chat-small"
     assert elapsed < MAX_SECONDS, f"fallback took {elapsed:.1f}s"
-    assert "Falling back to model_group = chat-small" in compose("logs", "--since", "60s", "litellm").stdout
+    assert "Falling back to model_group = chat-small" in STACK.logs("litellm", since="60s")

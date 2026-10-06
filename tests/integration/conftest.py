@@ -7,19 +7,19 @@ from collections.abc import Callable, Iterator
 
 import httpx
 import pytest
-from helpers import GATEWAY_URL, MASTER_KEY, TEAM_KEYS, client_for, compose, run_bootstrap
+from helpers import GATEWAY_URL, MASTER_KEY, STACK, TEAM_KEYS, client_for, run_bootstrap
 from openai import OpenAI
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
-    # Tests that stop a container go last, so they cannot disturb the others.
+    # Tests that stop a service go last, so they cannot disturb the others.
     items.sort(key=lambda item: item.get_closest_marker("disruptive") is not None)
 
 
 @pytest.fixture(scope="session", autouse=True)
 def gateway() -> None:
     """Start the stack if needed (a no-op when it already runs) and create the client teams."""
-    compose("up", "--detach", "--wait", "--build")
+    STACK.start()
     run_bootstrap()
 
 

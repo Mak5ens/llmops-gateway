@@ -1,6 +1,7 @@
 # Presidio Analyzer with the French spaCy model and the custom French recognizers, on top of the official
-# image, which only ships en_core_web_lg. The NLP and recognizer configuration is mounted from config/presidio/
-# by compose.yaml, so changing it needs a restart, not a rebuild.
+# image, which only ships en_core_web_lg. The NLP and recognizer configuration of config/presidio/ is copied in
+# (build context `config`), so the published image runs on its own on Kubernetes; compose.yaml also mounts it,
+# so changing it locally needs a restart, not a rebuild.
 FROM mcr.microsoft.com/presidio-analyzer:2.2.362
 
 ARG FR_MODEL_URL=https://github.com/explosion/spacy-models/releases/download/fr_core_news_lg-3.8.0/fr_core_news_lg-3.8.0-py3-none-any.whl
@@ -13,6 +14,10 @@ USER 1001
 
 COPY pii_recognizers /app/pii_recognizers
 COPY server.py /app/server.py
+COPY --from=config . /config
+ENV ANALYZER_CONF_FILE=/config/analyzer.yaml \
+    NLP_CONF_FILE=/config/nlp.yaml \
+    RECOGNIZER_REGISTRY_CONF_FILE=/config/recognizers.yaml
 
 # Same command as the base image's entrypoint.sh, with server.py as the app: it imports pii_recognizers
 # before the recognizer registry is read.
