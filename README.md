@@ -147,9 +147,9 @@ A team that steps out of its limits gets an explicit error, and only that team i
 
 | Situation | Answer |
 | -- | -- |
-| Alias not allowed for the team | `401 team_model_access_denied`: *This team can only access models=['chat-small', 'chat-large']. Tried to access embed* |
+| Alias not allowed for the team | `403 team_model_access_denied`: *The requested model 'embed' is not available for this API key, or the model name is invalid.* |
 | More requests or tokens per minute than the key allows | `429`: *Rate limit exceeded [...] Current limit: 2, Remaining: 0. Limit resets at: [time]* |
-| Budget spent | `400 budget_exceeded`: *Budget has been exceeded! Team=[team] Current cost: [...], Max budget: [...]* |
+| Budget spent | `422 budget_exceeded`: *Budget has been exceeded! Team=[team] Current cost: [...], Max budget: [...]* |
 
 `tests/integration/test_tenants.py` checks all three on a throwaway team, checks that `f1` still answers meanwhile, and checks that re-running the bootstrap left exactly one key per team.
 The budget blocks the call right after the one that crossed it: LiteLLM counts spend in memory at once, and writes it to PostgreSQL in batches, so `/team/info` may show it a few seconds later.
@@ -170,7 +170,7 @@ The gateway masks French personal data before the model sees it, and puts it bac
 
 The guardrail is LiteLLM's [Presidio integration](https://docs.litellm.ai/docs/proxy/guardrails/pii_masking_v2), set up in [`config/litellm.yaml`](config/litellm.yaml): French analysis, the entities to mask (names, places, addresses, emails, phones, IBAN, cards, crypto wallets, IP addresses, NIR, tax numbers) and a score threshold of 0.4. Dates stay in clear: an order or a delivery cannot be handled without them, and they identify nobody on their own.
 
-**Two fixes to LiteLLM's markers.** LiteLLM 1.83.14 numbers markers in a way that breaks on real French text, as tested on this stack: overlapping detections (an address and the city inside it) were spliced into `FR_ADDRESS_2ON_4`, and two people in two messages both became `<PERSON_1>`, so the answer put one person's name in place of the other's. Both bugs are open upstream ([#42130](https://github.com/BerriAI/litellm/issues/42130), [#31959](https://github.com/BerriAI/litellm/issues/31959)). [`guardrails/presidio_markers.py`](guardrails/presidio_markers.py) subclasses LiteLLM's guardrail and overrides only the method that builds the markers: overlapping detections are merged into one, and numbers run across the request. See [ADR-015](docs/adr/015-presidio-marker-fixes.md).
+**Two fixes to LiteLLM's markers.** LiteLLM (1.83.14, still in 1.104.1) numbers markers in a way that breaks on real French text, as tested on this stack: overlapping detections (an address and the city inside it) were spliced into `FR_ADDRESS_2ON_4`, and two people in two messages both became `<PERSON_1>`, so the answer put one person's name in place of the other's. Both bugs are open upstream ([#42130](https://github.com/BerriAI/litellm/issues/42130), [#31959](https://github.com/BerriAI/litellm/issues/31959)). [`guardrails/presidio_markers.py`](guardrails/presidio_markers.py) subclasses LiteLLM's guardrail and overrides only the method that builds the markers: overlapping detections are merged into one, and numbers run across the request. See [ADR-015](docs/adr/015-presidio-marker-fixes.md).
 
 **Per team.** Assigning a guardrail to a team is a LiteLLM Enterprise feature, so the gateway uses what the open-source version offers: `pii-fr` runs on every request (`default_on`), and a team set to `pii_masking: optional` in `config/tenants.yaml` is opted out through its metadata, which only the admin API writes. A required team cannot opt out from the request: metadata sent by the caller is ignored.
 
@@ -366,7 +366,7 @@ The `langfuse` block of each team in [`config/tenants.yaml`](config/tenants.yaml
 
 - the organization, the project, its API keys and the lead's account, in Langfuse's database;
 - the prices of the aliases, in every project;
-- in LiteLLM, the team's metadata, which points its traces to its project with a reference to its secret key (`os.environ/LANGFUSE_SECRET_KEY_<TEAM>`). The key itself does not go into LiteLLM's database.
+- in LiteLLM's configuration, `default_team_settings` in `config/litellm.yaml` points the team's traces to its project, with a reference to its secret key (`os.environ/LANGFUSE_SECRET_KEY_<TEAM>`). The key itself does not go into LiteLLM's database. The bootstrap checks that this file and `tenants.yaml` agree.
 
 Why an organization per team, and why the bootstrap writes to Langfuse's database: Langfuse's project roles and its admin API for organizations, projects and keys are Enterprise features. The bootstrap writes the same rows as Langfuse's own `LANGFUSE_INIT_*` variables. See [ADR-016](docs/adr/016-langfuse-project-per-team.md).
 
@@ -377,7 +377,7 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 | File | Checks |
 | -- | -- |
 | `test_routing.py` | Each alias answers, served by its own model (header `x-litellm-model-group`); `embed` returns 768 dimensions |
-| `test_tenants.py` | Allowed and refused aliases per team (401), rate limit (429), budget (400), isolation from other teams, idempotent bootstrap |
+| `test_tenants.py` | Allowed and refused aliases per team (403), rate limit (429), budget (422), isolation from other teams, idempotent bootstrap |
 | `test_pii_guardrail.py` | The prompt reaches the model with markers only, the answer (streamed or not) comes back with the real values, two people in two messages get two markers, `f1` is not masked unless it asks, `support` cannot opt out from the request |
 | `test_presidio.py` | The Analyzer finds every French identifier in a lease, context words raise the scores, no identifier comes out of ordinary numbers (amounts, dates, lap numbers), English still works; the Anonymizer replaces what was found |
 | `test_langfuse.py` | The UI answers, the Gateway project and its keys exist from the first start, a wrong key is refused, the admin can sign in and nobody can sign up, a span sent over OTLP is read back after going through S3, Redis, the worker and ClickHouse |
@@ -402,7 +402,15 @@ The same suite runs against the gateway deployed by [`llmops-platform`](https://
 - the bootstrap runs again as a copy of the `tenants-bootstrap` Job;
 - to stop `ollama-large` or restart LiteLLM at `DEBUG`, the tests suspend ArgoCD's reconciliation of the `llm-gateway` Application, then let ArgoCD put everything back as in Git.
 
-The CI publishes the two images the platform deploys, from `main`, tagged `sha-<commit>`: `ghcr.io/mak5ens/llmops-gateway/presidio-analyzer` (with its configuration of `config/presidio/`) and `ghcr.io/mak5ens/llmops-gateway/litellm` (the official image plus the guardrail class and the bootstrap scripts).
+The CI builds the two images the platform deploys with llmops-platform's shared workflow ([ADR-022](https://github.com/Mak5ens/llmops-platform/blob/main/docs/adr/022-supply-chain.md)): `ghcr.io/mak5ens/llmops-gateway/presidio-analyzer` (with its configuration of `config/presidio/`) and `ghcr.io/mak5ens/llmops-gateway/litellm` (the official image plus the guardrail class and the bootstrap scripts). A critical CVE with a fix fails the build; from `main`, each image is published as `sha-<commit>`, with an SBOM, and signed keyless:
+
+```bash
+cosign verify ghcr.io/mak5ens/llmops-gateway/litellm:sha-<commit> \
+  --certificate-identity-regexp '^https://github.com/Mak5ens/llmops-platform/\.github/workflows/build-image\.yml@' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
+`cosign verify-attestation --type spdxjson` with the same options returns the SBOM.
 
 ## Roadmap
 

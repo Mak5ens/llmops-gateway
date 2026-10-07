@@ -8,8 +8,14 @@ ARG FR_MODEL_URL=https://github.com/explosion/spacy-models/releases/download/fr_
 ARG FR_MODEL_SHA256=da5bf7fc860af64293d88638b4416b3de3a29005b785bfff67d09b06c77345de
 
 # The base image installs its packages as root and runs as user 1001.
+# 2.2.362 is the last image Microsoft publishes: its Debian packages and anyio have critical CVEs fixed since, applied
+# here so the image passes the supply chain scan (llmops-platform, ADR-022). Remove once a newer base image exists.
 USER root
-RUN pip install --no-deps "fr_core_news_lg @ ${FR_MODEL_URL}#sha256=${FR_MODEL_SHA256}"
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir "anyio==4.14.2" \
+    && pip install --no-deps "fr_core_news_lg @ ${FR_MODEL_URL}#sha256=${FR_MODEL_SHA256}"
 USER 1001
 
 COPY pii_recognizers /app/pii_recognizers

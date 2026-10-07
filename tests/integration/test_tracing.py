@@ -60,13 +60,13 @@ def unique_name() -> str:
 
 
 @pytest.mark.parametrize(("team", "alias"), CALLS)
-def test_a_call_is_traced_to_the_project_of_its_team(team_client, team, alias):
+def test_a_call_is_traced_to_the_project_of_its_team(mock_client, team, alias):
     name = unique_name()
-    response = call(team_client(team), alias, name)
+    response = call(mock_client(team), alias, name)
 
     [generation] = traced(team, name)
     team_metadata = generation["metadata"]["attributes.metadata"]
-    assert (team_metadata["user_api_key_team_id"], team_metadata["user_api_key_alias"]) == (team, f"{team}-app")
+    assert (team_metadata["user_api_key_team_id"], team_metadata["user_api_key_alias"]) == (team, f"{team}-tests")
     assert generation["model"] == alias
     assert generation["usageDetails"]["input"] > 0
     assert generation["latency"] is not None
@@ -76,10 +76,10 @@ def test_a_call_is_traced_to_the_project_of_its_team(team_client, team, alias):
         assert observations(other, name=name) == [], f"the call of {team} also reached {other}"
 
 
-def test_a_streamed_call_is_priced_too(team_client):
+def test_a_streamed_call_is_priced_too(mock_client):
     # A streamed call's trace carries the model behind the alias instead of the alias: it must get the same price.
     name = unique_name()
-    stream = team_client("support").chat.completions.create(
+    stream = mock_client("support").chat.completions.create(
         model="chat-large", messages=user("Bonjour"), stream=True, stream_options={"include_usage": True},
         extra_body={"metadata": {"generation_name": name}, "mock_response": "Bonjour !"},
     )
@@ -97,19 +97,19 @@ def test_a_call_without_a_team_is_traced_to_the_gateway_project():
     assert len(traced("gateway", name)) == 1
 
 
-def test_a_failed_call_is_traced_as_an_error(team_client):
+def test_a_failed_call_is_traced_as_an_error(mock_client):
     name = unique_name()
     with pytest.raises(openai.InternalServerError):
-        call(team_client("mj"), "chat-small", name, mock_response="litellm.InternalServerError", num_retries=0)
+        call(mock_client("mj"), "chat-small", name, mock_response="litellm.InternalServerError", num_retries=0)
     assert [generation["level"] for generation in traced("mj", name)] == ["ERROR"]
 
 
-def test_traces_hold_no_message_and_no_personal_data(team_client):
+def test_traces_hold_no_message_and_no_personal_data(mock_client):
     # The pii-fr guardrail puts the real values back into the answer, before LiteLLM logs it: the trace must not
     # keep the messages. The guardrail's own observation keeps the types and positions of what it masked.
     name = unique_name()
     mock = "Dossier de <PERSON_1>, virement sur <IBAN_CODE_3>."
-    response = call(team_client("support"), "chat-large", name, DEMO, mock_response=mock).parse()
+    response = call(mock_client("support"), "chat-large", name, DEMO, mock_response=mock).parse()
     assert "Marie Dupont" in response.choices[0].message.content
 
     [generation] = traced("support", name)

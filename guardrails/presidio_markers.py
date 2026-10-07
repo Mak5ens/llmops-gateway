@@ -83,3 +83,13 @@ class PresidioStableMarkers(_OPTIONAL_PresidioPIIMasking):
             entity_type = result["entity_type"]
             masked_entity_count[entity_type] = masked_entity_count.get(entity_type, 0) + 1
         return replace_with_markers(text, results, tokens)
+
+    async def async_post_call_streaming_iterator_hook(self, user_api_key_dict, response, request_data):
+        """The parent's hook, unchanged: it puts the real values back into a streamed answer.
+
+        Since 1.84, LiteLLM only passes a stream to callbacks whose own class defines this hook (a check on the leaf
+        class's __dict__ in proxy/utils.py), not to subclasses that inherit it: without this, streamed answers came
+        back with their markers. tests/unit/test_presidio_markers.py checks it stays defined here.
+        """
+        async for chunk in super().async_post_call_streaming_iterator_hook(user_api_key_dict, response, request_data):
+            yield chunk

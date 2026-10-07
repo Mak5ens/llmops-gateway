@@ -21,7 +21,7 @@ The HTTP gateway is a separate concern (ADR-005): Envoy Gateway terminates TLS a
 
 ## Decision
 
-We choose **B**, LiteLLM Proxy, in the `litellm-database` image pinned to `main-v1.83.14-stable`. It is the only option that covers keys, budgets, fallback, PII masking and tracing without a licence, and runs the same in Compose and on Kubernetes. Our code around it stays small: `config/litellm.yaml` (107 lines), `config/tenants.yaml` (74 lines), two bootstrap scripts and one 85-line guardrail subclass.
+We choose **B**, LiteLLM Proxy, in the `litellm-database` image pinned to `main-v1.83.14-stable` (`v1.104.1` since 2026-10-08, LAB-130, to close the authentication bypass CVE-2026-49468). It is the only option that covers keys, budgets, fallback, PII masking and tracing without a licence, and runs the same in Compose and on Kubernetes. Our code around it stays small: `config/litellm.yaml` (107 lines), `config/tenants.yaml` (74 lines), two bootstrap scripts and one 85-line guardrail subclass.
 
 ## Consequences
 

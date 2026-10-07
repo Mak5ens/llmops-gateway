@@ -61,7 +61,7 @@ services:
     restart: "no"
 
   litellm:
-    image: ghcr.io/berriai/litellm-database:main-v1.83.14-stable
+    image: ghcr.io/berriai/litellm-database:v1.104.1
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -150,7 +150,7 @@ services:
   # Run by `just gateway-up` and `just tenants` with `docker compose run`. The profile keeps it out of
   # `docker compose up --wait`, which fails on any container that exits, even with code 0, when nothing depends on it.
   tenants-bootstrap:
-    image: ghcr.io/berriai/litellm-database:main-v1.83.14-stable
+    image: ghcr.io/berriai/litellm-database:v1.104.1
     profiles: [bootstrap]
     entrypoint: ["python3", "/scripts/bootstrap_tenants.py"]
     environment:
