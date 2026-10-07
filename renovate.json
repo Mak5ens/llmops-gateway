@@ -1,0 +1,28 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Version updates of the gateway: images of compose.yaml and the Dockerfiles, Python dependencies (uv.lock), GitHub Actions (pinned to commit SHAs), pre-commit hooks. LiteLLM, Presidio and the libraries pinned to the images' versions move together.",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", ":semanticCommits"],
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "dependencyDashboard": true,
+  "pre-commit": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "description": "LiteLLM: image and Python package on the same version (the guardrail class extends its code, ADR-015)",
+      "matchPackageNames": ["ghcr.io/berriai/litellm-database", "litellm"],
+      "groupName": "LiteLLM"
+    },
+    {
+      "description": "Presidio: images and Python package on the same version (the unit tests run the recognizers on it)",
+      "matchPackageNames": ["mcr.microsoft.com/presidio-analyzer", "mcr.microsoft.com/presidio-anonymizer", "presidio-analyzer"],
+      "groupName": "Presidio"
+    },
+    {
+      "description": "Major versions need a reading of their upgrade notes",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}
