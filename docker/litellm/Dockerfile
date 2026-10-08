@@ -1,7 +1,7 @@
 # LiteLLM as it runs on Kubernetes: the official image, plus the pii-fr guardrail class and the tenant bootstrap
 # scripts. Built with the build contexts `guardrails` and `scripts` (see .github/workflows/images.yml).
 # compose.yaml keeps the official image and mounts the same files.
-FROM ghcr.io/berriai/litellm-database:main-v1.83.14-stable
+FROM ghcr.io/berriai/litellm-database:v1.104.1
 
 # LiteLLM loads custom guardrail classes from the directory of its config file, which the Helm chart mounts
 # at /etc/litellm/config.yaml.

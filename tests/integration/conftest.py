@@ -38,6 +38,30 @@ def team_client() -> Callable[[str], OpenAI]:
 
 
 @pytest.fixture
+def mock_client(admin: httpx.Client) -> Iterator[Callable[[str], OpenAI]]:
+    """Client of a test key of a team, allowed to send mock_response.
+
+    Since LiteLLM 1.84, the proxy drops mock_response from a request unless the key or its team has
+    allow_client_mock_response in its metadata: a client could otherwise skip the model. The teams' own keys keep that
+    protection; these keys belong to the team, so its settings (aliases, guardrail opt-out, Langfuse project) apply,
+    and they are deleted after the test, so each team still has one key for test_bootstrap_is_idempotent.
+    """
+    keys: dict[str, str] = {}
+
+    def create(team: str) -> OpenAI:
+        if team not in keys:
+            body = {"team_id": team, "key_alias": f"{team}-tests", "metadata": {"allow_client_mock_response": True}}
+            response = admin.post("/key/generate", json=body)
+            response.raise_for_status()
+            keys[team] = response.json()["key"]
+        return client_for(keys[team])
+
+    yield create
+    if keys:
+        admin.post("/key/delete", json={"keys": list(keys.values())}).raise_for_status()
+
+
+@pytest.fixture
 def temp_team(admin: httpx.Client) -> Iterator[str]:
     """Throwaway team allowed on chat-small, with no limit, deleted with its keys after the test.
 

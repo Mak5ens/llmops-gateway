@@ -19,6 +19,7 @@ import bootstrap_langfuse
 GATEWAY_URL = os.environ.get("LITELLM_URL", "http://localhost:4000")
 MASTER_KEY = os.environ["LITELLM_MASTER_KEY"]
 TENANTS_FILE = os.environ.get("TENANTS_FILE", "config/tenants.yaml")
+LITELLM_CONFIG = os.environ.get("LITELLM_CONFIG", "config/litellm.yaml")
 
 TEAM_FIELDS = ("team_alias", "models", "max_budget", "budget_duration")
 KEY_FIELDS = ("key_alias", "rpm_limit", "tpm_limit")
@@ -26,13 +27,22 @@ KEY_FIELDS = ("key_alias", "rpm_limit", "tpm_limit")
 PII_GUARDRAIL = "pii-fr"
 
 
-def langfuse_logging(settings: dict) -> list[dict]:
-    """Team metadata that makes LiteLLM send the team's traces to its own Langfuse project.
+def check_langfuse_settings(teams: list[dict]) -> None:
+    """Exit if a team's Langfuse project differs between tenants.yaml and default_team_settings in config/litellm.yaml.
 
-    The secret key stays in LiteLLM's environment: the metadata holds a reference to it, resolved on every call.
+    LiteLLM reads where to send a team's traces from its config file (ADR-016): the two files must agree, or a team's
+    traces would go to another project, or to none.
     """
-    variables = {"langfuse_public_key": settings["public_key"], "langfuse_secret_key": f"os.environ/{settings['secret_key_env']}"}
-    return [{"callback_name": "langfuse_otel", "callback_type": "success_and_failure", "callback_vars": variables}]
+    with open(LITELLM_CONFIG) as file:
+        settings = yaml.safe_load(file)["litellm_settings"].get("default_team_settings", [])
+    configured = {s["team_id"]: (s.get("langfuse_public_key"), s.get("langfuse_secret_key")) for s in settings}
+    for team in teams:
+        if "langfuse" not in team:
+            continue
+        expected = (team["langfuse"]["public_key"], f"os.environ/{team['langfuse']['secret_key_env']}")
+        if configured.get(team["team_id"]) != expected:
+            sys.exit(f"team {team['team_id']}: default_team_settings in {LITELLM_CONFIG} must set "
+                     f"langfuse_public_key {expected[0]} and langfuse_secret_key {expected[1]}")
 
 
 def call(method: str, path: str, body: dict | None = None) -> tuple[int, dict]:
@@ -60,6 +70,7 @@ def ensure(kind: str, exists: bool, create: str, update: str, body: dict) -> Non
 def main() -> None:
     with open(TENANTS_FILE) as file:
         teams = yaml.safe_load(file)["teams"]
+    check_langfuse_settings(teams)
 
     # List endpoints rather than /team/info and /key/info: those log a stack trace for every missing object.
     _, existing_teams = call("GET", "/team/list")
@@ -73,8 +84,6 @@ def main() -> None:
         # LiteLLM reads the opt-out from the team metadata, which only the admin API can write.
         opted_out = [PII_GUARDRAIL] if team["pii_masking"] == "optional" else []
         team_body["metadata"] = {"opted_out_global_guardrails": opted_out}
-        if "langfuse" in team:
-            team_body["metadata"]["logging"] = langfuse_logging(team["langfuse"])
         ensure(f"team {team_id}", team_id in existing_team_ids, "/team/new", "/team/update", team_body)
 
         key = team["key"]

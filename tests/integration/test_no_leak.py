@@ -78,7 +78,7 @@ def now() -> str:
 @pytest.fixture
 def masked_team(temp_team: str, new_key) -> OpenAI:
     """Client of a throwaway team on chat-small: no opt-out, so the pii-fr guardrail runs on every request."""
-    return new_key(team_id=temp_team)
+    return new_key(team_id=temp_team, metadata={"allow_client_mock_response": True})
 
 
 @pytest.fixture

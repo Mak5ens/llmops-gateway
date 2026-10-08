@@ -28,9 +28,10 @@ def test_team_reaches_its_aliases_only(team_client, team, allowed, forbidden):
     call(client, allowed)
 
     if forbidden:
-        with pytest.raises(openai.AuthenticationError) as refused:
+        # 403 since LiteLLM 1.84 (401 before): the key is valid, the model is not allowed to its team.
+        with pytest.raises(openai.PermissionDeniedError) as refused:
             call(client, forbidden)
-        assert refused.value.status_code == 401
+        assert refused.value.status_code == 403
         assert refused.value.body["type"] == "team_model_access_denied"
 
 
@@ -52,7 +53,8 @@ def test_budget_blocks_the_team_and_not_other_teams(admin, temp_team, new_key, t
     # One call costs about $0.000005 at the internal price of chat-small (ADR-014): the team is now over budget.
     admin.post("/team/update", json={"team_id": temp_team, "max_budget": 0.000001}).raise_for_status()
 
-    with pytest.raises(openai.BadRequestError) as blocked:
+    # 422 since LiteLLM 1.84 (400 before).
+    with pytest.raises(openai.UnprocessableEntityError) as blocked:
         ask(client, "chat-small")
     assert blocked.value.body["type"] == "budget_exceeded"
 

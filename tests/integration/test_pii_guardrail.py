@@ -32,44 +32,44 @@ def test_the_prompt_reaches_the_model_with_markers_only(admin: httpx.Client):
     )
 
 
-def test_the_answer_comes_back_with_the_real_values(team_client):
+def test_the_answer_comes_back_with_the_real_values(mock_client):
     mock = "Dossier de <PERSON_1>, <FR_ADDRESS_2>, virement sur <IBAN_CODE_3>, joignable au <PHONE_NUMBER_4>."
-    assert answer(team_client("support"), user(DEMO), mock) == (
+    assert answer(mock_client("support"), user(DEMO), mock) == (
         "Dossier de Marie Dupont, 12 rue de la Paix, 75002 Paris, virement sur FR76 3000 6000 0112 3456 7890 189, "
         "joignable au 06 12 34 56 78."
     )
 
 
-def test_two_people_in_two_messages_get_two_markers(team_client):
+def test_two_people_in_two_messages_get_two_markers(mock_client):
     messages = [
         {"role": "user", "content": "Le client est Jean Martin."},
         {"role": "assistant", "content": "Noté."},
         {"role": "user", "content": "La conseillère est Marie Dupont."},
     ]
-    assert answer(team_client("support"), messages, "<PERSON_1> écrit à <PERSON_2>.") == "Jean Martin écrit à Marie Dupont."
+    assert answer(mock_client("support"), messages, "<PERSON_1> écrit à <PERSON_2>.") == "Jean Martin écrit à Marie Dupont."
 
 
-def test_a_streamed_answer_is_put_back_too(team_client):
-    stream = team_client("support").chat.completions.create(
+def test_a_streamed_answer_is_put_back_too(mock_client):
+    stream = mock_client("support").chat.completions.create(
         model="chat-large", messages=user(DEMO), stream=True, extra_body={"mock_response": "Bonjour <PERSON_1> !"}
     )
     chunks = [chunk.choices[0].delta.content or "" for chunk in stream if chunk.choices]
     assert "".join(chunks) == "Bonjour Marie Dupont !"
 
 
-def test_an_opted_out_team_is_not_masked(team_client):
+def test_an_opted_out_team_is_not_masked(mock_client):
     # f1 is "optional" in config/tenants.yaml: the marker is not in the request, so it stays as is.
-    assert answer(team_client("f1"), user(DEMO), "Bonjour <PERSON_1> !", alias="chat-small") == "Bonjour <PERSON_1> !"
+    assert answer(mock_client("f1"), user(DEMO), "Bonjour <PERSON_1> !", alias="chat-small") == "Bonjour <PERSON_1> !"
 
 
-def test_an_opted_out_team_can_mask_one_request(team_client):
+def test_an_opted_out_team_can_mask_one_request(mock_client):
     reply = answer(
-        team_client("f1"), user(DEMO), "Bonjour <PERSON_1> !", alias="chat-small", guardrails=["pii-fr-on-request"]
+        mock_client("f1"), user(DEMO), "Bonjour <PERSON_1> !", alias="chat-small", guardrails=["pii-fr-on-request"]
     )
     assert reply == "Bonjour Marie Dupont !"
 
 
-def test_a_required_team_cannot_opt_out_from_the_request(team_client):
+def test_a_required_team_cannot_opt_out_from_the_request(mock_client):
     # The opt-out is read from the team metadata written by the admin, not from what the caller sends.
     spoofed = {"user_api_key_team_metadata": {"opted_out_global_guardrails": ["pii-fr"]}, "disable_global_guardrails": True}
-    assert answer(team_client("support"), user(DEMO), "Bonjour <PERSON_1> !", metadata=spoofed) == "Bonjour Marie Dupont !"
+    assert answer(mock_client("support"), user(DEMO), "Bonjour <PERSON_1> !", metadata=spoofed) == "Bonjour Marie Dupont !"

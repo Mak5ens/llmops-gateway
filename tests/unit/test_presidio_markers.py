@@ -107,3 +107,8 @@ def test_the_masked_entity_count_follows_the_merged_detections():
     count: dict[str, int] = {}
     guardrail()._finalize_presidio_anonymize_numbered_tokens(TEXT, DETECTIONS, {}, count)
     assert count == {"PERSON": 1, "FR_ADDRESS": 1, "IBAN_CODE": 1}
+
+
+def test_the_class_defines_the_streaming_hook_itself():
+    # LiteLLM only runs the streaming hook of a guardrail whose own class defines it (see the hook's docstring).
+    assert "async_post_call_streaming_iterator_hook" in PresidioStableMarkers.__dict__
