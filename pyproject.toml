@@ -17,7 +17,7 @@ dev = [
     "openai>=2",
     # Same version as the Analyzer image, so the unit tests run the recognizers on the code they run on in the stack.
     "presidio-analyzer==2.2.362",
-    "phonenumbers==9.0.26",
+    "phonenumbers==9.0.41",
     "pytest>=8",
     "python-dotenv>=1",
     "faker==40.40.0",

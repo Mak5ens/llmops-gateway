@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -1026,7 +1026,7 @@ dev = [
     { name = "httpx", specifier = ">=0.28" },
     { name = "litellm", specifier = "==1.104.1" },
     { name = "openai", specifier = ">=2" },
-    { name = "phonenumbers", specifier = "==9.0.26" },
+    { name = "phonenumbers", specifier = "==9.0.41" },
     { name = "presidio-analyzer", specifier = "==2.2.362" },
     { name = "pytest", specifier = ">=8" },
     { name = "python-dotenv", specifier = ">=1" },
@@ -1406,11 +1406,11 @@ wheels = [
 
 [[package]]
 name = "phonenumbers"
-version = "9.0.26"
+version = "9.0.41"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/43/a3/3720326431a23c8e8944a07cdf51520608f1fded87e32e991116fdb801bd/phonenumbers-9.0.26.tar.gz", hash = "sha256:9e582c827f0f5503cddeebef80099475a52ffa761551d8384099c7ec71298cbf", size = 2298587, upload-time = "2026-03-13T11:34:19.656Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2f/df/cc0d70f1c79e436ea00d935b6352053d526252b81ce6c130d39eee846fb2/phonenumbers-9.0.41.tar.gz", hash = "sha256:dfa6f74eeac67c044b75313fe0af10774d7d1e1242241437279d4c2fb8027c01", size = 2311017, upload-time = "2026-10-08T10:51:09.778Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dd/93/8825b3c9c23e595f34aa11735b29550c27a0f57fe4fc8c9ee737390566ca/phonenumbers-9.0.26-py2.py3-none-any.whl", hash = "sha256:ff473da5712965b6c7f7a31cbff8255864df694eb48243771133ecb761e807c1", size = 2584969, upload-time = "2026-03-13T11:34:16.671Z" },
+    { url = "https://files.pythonhosted.org/packages/60/1a/4059026e9c8a4c3faeab4a45f5aa67fb77d1f0d9c767085ded69c5c533e2/phonenumbers-9.0.41-py2.py3-none-any.whl", hash = "sha256:ccf2ea44f8aa35c487f26146a31520ecedf8e1af1f57c803678ecb5ef5c01668", size = 2594658, upload-time = "2026-10-08T10:51:07.317Z" },
 ]
 
 [[package]]
