@@ -3,7 +3,8 @@ name: Images
 # Images the platform deploys (llmops-platform), built by its shared workflow (ADR-022 in llmops-platform): Trivy scan
 # that blocks critical CVEs with a fix, then from main, publication to GHCR as sha-<7 characters>, SBOM (Syft) and
 # keyless signature (cosign), both verifiable with `cosign verify` (README, "Images").
-# The workflow is pinned to a commit of llmops-platform; Renovate proposes the updates.
+# The workflow is pinned to a commit of llmops-platform's main branch: a commit of another branch can no longer be
+# called once that branch is deleted ("workflow was not found"). Renovate proposes the updates.
 on:
   pull_request:
   push:
@@ -15,7 +16,7 @@ permissions:
 jobs:
   # French Presidio Analyzer: spaCy fr_core_news_lg, the French recognizers and their configuration.
   presidio-analyzer:
-    uses: Mak5ens/llmops-platform/.github/workflows/build-image.yml@536f10bc161d6c9b953a3338851c7046461d5079
+    uses: Mak5ens/llmops-platform/.github/workflows/build-image.yml@d5b4cb1e87e2aa56df56166f754fb3d3e3ff72a6
     permissions:
       contents: read
       packages: write
@@ -29,7 +30,7 @@ jobs:
 
   # LiteLLM with the pii-fr guardrail class and the tenant bootstrap scripts.
   litellm:
-    uses: Mak5ens/llmops-platform/.github/workflows/build-image.yml@536f10bc161d6c9b953a3338851c7046461d5079
+    uses: Mak5ens/llmops-platform/.github/workflows/build-image.yml@d5b4cb1e87e2aa56df56166f754fb3d3e3ff72a6
     permissions:
       contents: read
       packages: write
