@@ -135,6 +135,10 @@ class KubernetesStack:
         annotation = "argocd.argoproj.io/skip-reconcile"
         value = f"{annotation}-" if enabled else f"{annotation}=true"
         self.kubectl("-n", "argocd", "annotate", "application", self.application, value, "--overwrite")
+        if not enabled:
+            # The annotation stops new reconciliations, not one already running: one started a moment before (after
+            # the previous test resumed, for instance) would still revert the change that follows.
+            time.sleep(10)
 
     def _resume(self) -> None:
         self._reconcile(True)
@@ -198,6 +202,8 @@ class KubernetesStack:
             self.kubectl("set", "env", "deployment/litellm", "LITELLM_LOG=DEBUG", namespace=True)
             self.kubectl("rollout", "status", "deployment/litellm", "--timeout=300s", namespace=True)
             self._wait_for_gateway()
+            if "LITELLM_LOG=DEBUG" not in self.kubectl("set", "env", "deployment/litellm", "--list", namespace=True):
+                raise RuntimeError("ArgoCD reverted LITELLM_LOG=DEBUG on the LiteLLM deployment")
             yield
         finally:
             self._resume()
