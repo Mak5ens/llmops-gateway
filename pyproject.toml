@@ -16,7 +16,7 @@ dev = [
     "litellm==1.104.1",
     "openai>=2",
     # Same version as the Analyzer image, so the unit tests run the recognizers on the code they run on in the stack.
-    "presidio-analyzer==2.2.362",
+    "presidio-analyzer==2.2.364",
     "phonenumbers==9.0.41",
     "pytest>=8",
     "python-dotenv>=1",
