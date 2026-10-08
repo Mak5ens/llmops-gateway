@@ -13,7 +13,7 @@ dependencies = []
 dev = [
     "httpx>=0.28",
     # Same version as the LiteLLM image, whose Presidio guardrail guardrails/presidio_markers.py extends.
-    "litellm==1.104.1",
+    "litellm==1.104.2",
     "openai>=2",
     # Same version as the Analyzer image, so the unit tests run the recognizers on the code they run on in the stack.
     "presidio-analyzer==2.2.362",
