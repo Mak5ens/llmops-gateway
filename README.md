@@ -412,6 +412,12 @@ cosign verify ghcr.io/mak5ens/llmops-gateway/litellm:sha-<commit> \
 
 `cosign verify-attestation --type spdxjson` with the same options returns the SBOM.
 
+### Releases
+
+Releases are cut by [release-please](https://github.com/googleapis/release-please) from the Conventional Commits of `main` ([ADR-023](https://github.com/Mak5ens/llmops-platform/blob/main/docs/adr/023-image-propagation.md)). It keeps a release PR open with the next version and [`CHANGELOG.md`](CHANGELOG.md): a `fix:` bumps the patch, a `feat:` the minor, a `feat!:` the major. Merging that PR tags `vX.Y.Z`, creates the GitHub release, and publishes both images as `X.Y.Z` too, signed like the others.
+
+Renovate, on llmops-platform, follows the `X.Y.Z` tags and opens the PR that deploys the release; a patch release is merged on its own once the platform's CI passes, ArgoCD deploys it. The platform keeps a copy of `config/litellm.yaml` and `config/tenants.yaml`: its CI fails when the copy differs from the release, and `just gateway-config` there copies the release's files.
+
 ## Roadmap
 
 - [x] **1.1 Local gateway**: LiteLLM + Ollama + PostgreSQL in Docker Compose, at least two models, per-team virtual keys, budgets and rate limiting.

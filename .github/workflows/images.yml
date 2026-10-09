@@ -1,8 +1,16 @@
 name: Images
 
-# Images the platform deploys (llmops-platform), built by its shared workflow (ADR-022 in llmops-platform): Trivy scan
-# that blocks critical CVEs with a fix, then from main, publication to GHCR as sha-<7 characters>, SBOM (Syft) and
-# keyless signature (cosign), both verifiable with `cosign verify` (README, "Images").
+# Releases and images of the gateway (ADR-023 in llmops-platform).
+#
+# On main, release-please keeps a release PR open from the Conventional Commits merged since the last release (fix:
+# patch, feat: minor, feat!: major), with the version and CHANGELOG.md. Merging that PR tags vX.Y.Z and creates the
+# GitHub release.
+#
+# The images the platform deploys are built by its shared workflow (ADR-022 in llmops-platform): Trivy scan that blocks
+# critical CVEs with a fix, then from main, publication to GHCR as sha-<7 characters>, and X.Y.Z for a release, SBOM
+# (Syft) and keyless signature (cosign), both verifiable with `cosign verify` (README, "Images"). Renovate, on
+# llmops-platform, follows the X.Y.Z tags and opens the PR that deploys a release.
+#
 # The workflow is pinned to a commit of llmops-platform's main branch: a commit of another branch can no longer be
 # called once that branch is deleted ("workflow was not found"). Renovate proposes the updates.
 on:
@@ -14,9 +22,27 @@ permissions:
   contents: read
 
 jobs:
+  release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      version: ${{ steps.release.outputs.release_created && steps.release.outputs.version || '' }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   # French Presidio Analyzer: spaCy fr_core_news_lg, the French recognizers and their configuration.
   presidio-analyzer:
-    uses: Mak5ens/llmops-platform/.github/workflows/build-image.yml@d5b4cb1e87e2aa56df56166f754fb3d3e3ff72a6
+    needs: release
+    # Also on pull requests, where the release job is skipped: build and scan, without publishing.
+    if: ${{ !failure() && !cancelled() }}
+    uses: Mak5ens/llmops-platform/.github/workflows/build-image.yml@ae1a9844545c350c966a18eb058638471fa90efe
     permissions:
       contents: read
       packages: write
@@ -26,11 +52,14 @@ jobs:
       context: docker/presidio-analyzer
       build-contexts: |
         config=config/presidio
+      version: ${{ needs.release.outputs.version }}
       push: ${{ github.event_name == 'push' }}
 
   # LiteLLM with the pii-fr guardrail class and the tenant bootstrap scripts.
   litellm:
-    uses: Mak5ens/llmops-platform/.github/workflows/build-image.yml@d5b4cb1e87e2aa56df56166f754fb3d3e3ff72a6
+    needs: release
+    if: ${{ !failure() && !cancelled() }}
+    uses: Mak5ens/llmops-platform/.github/workflows/build-image.yml@ae1a9844545c350c966a18eb058638471fa90efe
     permissions:
       contents: read
       packages: write
@@ -41,4 +70,5 @@ jobs:
       build-contexts: |
         guardrails=guardrails
         scripts=scripts
+      version: ${{ needs.release.outputs.version }}
       push: ${{ github.event_name == 'push' }}
