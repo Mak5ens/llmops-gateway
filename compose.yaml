@@ -26,7 +26,7 @@ services:
 
   # Serves chat-small and embed. Each Ollama instance stands for one model server, like vLLM pods on the cluster.
   ollama:
-    image: ollama/ollama:0.34.4
+    image: ollama/ollama:0.40.2
     volumes:
       - ollama-models:/root/.ollama
     ports:
@@ -41,7 +41,7 @@ services:
 
   # Serves chat-large. Stopping it simulates an outage of the main model: `tests/integration/test_fallback.py`.
   ollama-large:
-    image: ollama/ollama:0.34.4
+    image: ollama/ollama:0.40.2
     volumes:
       - ollama-models:/root/.ollama
     healthcheck: *ollama-healthcheck
@@ -50,7 +50,7 @@ services:
   # One-shot job: downloads every model on first start, then exits. Later starts only check the manifests.
   # Both Ollama instances share the model volume, so pulling through one is enough.
   ollama-pull:
-    image: ollama/ollama:0.34.4
+    image: ollama/ollama:0.40.2
     environment:
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODELS_TO_PULL: ${OLLAMA_MODELS:?set in .env}
