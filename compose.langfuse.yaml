@@ -82,7 +82,7 @@ services:
 
   # Takes the events queued in Redis and writes them to ClickHouse.
   langfuse-worker:
-    image: docker.langfuse.com/langfuse/langfuse-worker:4.47.0
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.56.0
     depends_on: *langfuse-depends-on
     environment: *langfuse-env
     healthcheck:
