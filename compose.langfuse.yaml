@@ -12,7 +12,7 @@
 
 services:
   langfuse-web:
-    image: docker.langfuse.com/langfuse/langfuse:4.47.0
+    image: docker.langfuse.com/langfuse/langfuse:4.56.0
     depends_on: &langfuse-depends-on
       langfuse-postgres:
         condition: service_healthy
