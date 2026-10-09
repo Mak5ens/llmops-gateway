@@ -25,6 +25,11 @@ jobs:
   release:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # One run at a time: two runs in parallel once built the release PR from the files of one commit on top of a later
+    # one, which reverted the commits in between.
+    concurrency:
+      group: release-please
+      cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write

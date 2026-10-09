@@ -8,6 +8,16 @@
   "pre-commit": {
     "enabled": true
   },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "presidio-analyzer in pyproject.toml, on the version of the Analyzer image",
+      "managerFilePatterns": ["/^pyproject\\.toml$/"],
+      "matchStrings": ["\"presidio-analyzer==(?<currentValue>[0-9.]+)\""],
+      "depNameTemplate": "mcr.microsoft.com/presidio-analyzer",
+      "datasourceTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
       "description": "LiteLLM: image and Python package on the same version (the guardrail class extends its code, ADR-015)",
@@ -16,8 +26,14 @@
     },
     {
       "description": "Presidio: images and Python package on the same version (the unit tests run the recognizers on it)",
-      "matchPackageNames": ["mcr.microsoft.com/presidio-analyzer", "mcr.microsoft.com/presidio-anonymizer", "presidio-analyzer"],
+      "matchPackageNames": ["mcr.microsoft.com/presidio-analyzer", "mcr.microsoft.com/presidio-anonymizer"],
       "groupName": "Presidio"
+    },
+    {
+      "description": "The Python package is published before Microsoft's image: it follows the image's tags (custom manager below), not PyPI",
+      "matchDatasources": ["pypi"],
+      "matchPackageNames": ["presidio-analyzer"],
+      "enabled": false
     },
     {
       "description": "Major versions need a reading of their upgrade notes",
