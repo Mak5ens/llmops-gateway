@@ -99,7 +99,12 @@ def test_the_model_receives_only_the_known_misses(masked_team, request):
     log = STACK.logs("litellm", since=since)
     lines = [line.strip() for line in log.splitlines()]
     bodies = [ast.literal_eval(line[len("-d '") : -1]) for line in lines if line.startswith(BODY_PREFIX)]
-    assert len(bodies) == len(ROWS), "LiteLLM's DEBUG log no longer shows one body per call"
+    # Fewer bodies than calls has had three causes: the log format changed with a LiteLLM version, the container log
+    # was rotated during the calls (only the last ones are left), or the DEBUG pod was replaced (none are left).
+    assert len(bodies) == len(ROWS), (
+        f"{len(bodies)} request bodies in LiteLLM's DEBUG log for {len(ROWS)} calls: log format changed, log rotated "
+        "during the calls, or LiteLLM restarted without DEBUG"
+    )
 
     leaks = set()
     for row, body in zip(ROWS, bodies, strict=True):
