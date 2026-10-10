@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/Mak5ens/llmops-gateway/compare/v0.2.0...v0.2.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **tests:** say why the no-leak test finds fewer request bodies than calls (LAB-141) ([#45](https://github.com/Mak5ens/llmops-gateway/issues/45)) ([0b7da2b](https://github.com/Mak5ens/llmops-gateway/commit/0b7da2b3783d5cd35b4c5deb9ea13c4d2863cafc))
+
 ## [0.2.0](https://github.com/Mak5ens/llmops-gateway/compare/v0.1.0...v0.2.0) (2026-10-09)
 
 
