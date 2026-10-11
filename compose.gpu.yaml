@@ -1,0 +1,23 @@
+# NVIDIA GPU for the reranker: bge-reranker-v2-m3 (568 M parameters, the model of the cluster) instead of the light
+# CPU model of compose.yaml. Needs the NVIDIA Container Toolkit (README, "Reranking on a GPU").
+# Enable it with COMPOSE_FILE=compose.yaml:compose.gpu.yaml in .env: every `just` recipe and the tests then use it.
+services:
+  reranker:
+    # The tag names the GPU architecture: 89 for Ada (RTX 40xx), 86 for Ampere (RTX 30xx, A10), plain version for
+    # Hopper. See https://huggingface.co/docs/text-embeddings-inference/supported_models.
+    image: ghcr.io/huggingface/text-embeddings-inference:89-1.9.4
+    command:
+      - --model-id=BAAI/bge-reranker-v2-m3
+      - --revision=953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e
+      - --max-client-batch-size=64
+      # TEI starts one tokenizer per CPU thread by default: 27 here, and 3.8 GiB of RAM.
+      - --tokenization-workers=4
+    # On the GPU, RAM only holds the server; the model (2.2 GB of weights, fp16 on the GPU) lives in VRAM.
+    mem_limit: 4g
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

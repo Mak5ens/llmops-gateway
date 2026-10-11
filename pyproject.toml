@@ -29,8 +29,9 @@ package = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Lets the unit tests import pii_recognizers from the Analyzer image's build context, and presidio_markers.
-pythonpath = ["docker/presidio-analyzer", "guardrails"]
+# Lets the unit tests import pii_recognizers from the Analyzer image's build context, presidio_markers, and the
+# LiteLLM patches of the gateway's image.
+pythonpath = ["docker/presidio-analyzer", "guardrails", "docker/litellm"]
 addopts = "-v -ra"
 markers = [
     "disruptive: stops a container of the stack; runs after every other test",
