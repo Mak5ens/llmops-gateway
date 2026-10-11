@@ -10,6 +10,8 @@ services:
       - --model-id=BAAI/bge-reranker-v2-m3
       - --revision=953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e
       - --max-client-batch-size=64
+      # TEI starts one tokenizer per CPU thread by default: 27 here, and 3.8 GiB of RAM.
+      - --tokenization-workers=4
     # On the GPU, RAM only holds the server; the model (2.2 GB of weights, fp16 on the GPU) lives in VRAM.
     mem_limit: 4g
     deploy:
