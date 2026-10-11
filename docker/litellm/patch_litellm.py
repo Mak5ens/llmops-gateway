@@ -24,6 +24,7 @@ PATCHES = [
         # _get_model_info_helper: any `huggingface/` model was described as a free chat model, which ignored the
         # price of the deployment. The `rerank` alias (TEI, LiteLLM's huggingface provider) then cost $0, so its
         # calls escaped the team budgets (ADR-014). With the patch, a model priced in the cost map keeps its price.
+        # Upstream: https://github.com/BerriAI/litellm/issues/45975
         old=(
             "                        e,\n"
             "                    )\n"
