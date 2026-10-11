@@ -34,3 +34,8 @@ The price is a chargeback rate, not a bill: it tells a team what its usage would
 - Dollar budgets, per-team spend and later Langfuse cost reports work the same for local and paid models.
 - Changing a price only changes future spend; past spend keeps the price of the day.
 - The prices look arbitrary until they are backed by data. We revisit them once block 2 measures GPU cost per token on the cluster (option C).
+
+## Addendum (2026-10-11): reranking
+
+The `rerank` alias (LAB-184) is priced per query, as hosted rerankers are, not per token: **$1 per 1,000 queries**, half of Cohere's hosted reranker, since a query reranks up to 64 passages on a self-hosted model.
+LiteLLM 1.104.2 prices every model of its `huggingface` provider, which TEI uses, at $0 whatever the configuration; the gateway's image fixes it at build time (`docker/litellm/patch_litellm.py`) until LiteLLM does.

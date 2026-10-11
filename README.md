@@ -106,6 +106,7 @@ Teams call **usage aliases**, never model names. The platform decides which mode
 | `chat-small` | Short answers, classification, extraction | `qwen2.5:0.5b` | `ollama` | 30 s |
 | `chat-large` | Better answers, slower | `qwen2.5:1.5b` | `ollama-large` | 20 s, then fallback to `chat-small` |
 | `embed` | Embeddings, multilingual (French included), 768 dimensions | `granite-embedding:278m` | `ollama` | 30 s |
+| `rerank` | Reranking for RAG (`/rerank`): scores each candidate passage against the question | `mmarco-mMiniLMv2-L12` on CPU, `bge-reranker-v2-m3` on GPU | `reranker` (TEI) | 60 s |
 
 **Fallback.** If `chat-large` fails or times out, the gateway answers with `chat-small`. The response header `x-litellm-model-group` says which alias actually served the call, and the logs show `Falling back to model_group = chat-small`.
 Measured with `just test -k fallback` on CPU (i7-14700KF):
@@ -117,6 +118,31 @@ Measured with `just test -k fallback` on CPU (i7-14700KF):
 | Server back | `chat-large` serves again on the next call |
 
 `chat-large` has no retry (`num_retries: 0`): the fallback is its retry. With one retry, the worst case measured 44 s, since each attempt waits for the full timeout. The other aliases keep one retry.
+
+### Reranking
+
+A RAG first finds about 50 candidate passages with a fast vector search, then a cross-encoder rereads each (question, passage) pair and keeps the best ones: slower, much more precise. The gateway serves it as the `rerank` alias on LiteLLM's Cohere-style `/rerank` endpoint, so it is allowed per team, budgeted and traced like any model.
+
+```python
+httpx.post("http://localhost:4000/rerank", headers={"Authorization": f"Bearer {key}"},
+           json={"model": "rerank", "query": "Peut-on changer de pneus sous drapeau rouge ?", "documents": passages})
+# {"results": [{"index": 2, "relevance_score": 0.999}, ...]}: every passage, best first
+```
+
+The `reranker` service is [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference) (TEI), Hugging Face's inference server, and the model depends on the hardware:
+
+| Where | Model | 50 passages of 700 characters | Memory |
+| -- | -- | -- | -- |
+| CPU, default (`compose.yaml`, and CI) | [`cross-encoder/mmarco-mMiniLMv2-L12-H384-v1`](https://huggingface.co/cross-encoder/mmarco-mMiniLMv2-L12-H384-v1), 118 M parameters, multilingual, ONNX | 2.2 s (median of 5, through the gateway, i7-14700KF) | 650 MiB |
+| NVIDIA GPU (`compose.gpu.yaml`, and the cluster) | [`BAAI/bge-reranker-v2-m3`](https://huggingface.co/BAAI/bge-reranker-v2-m3), 568 M parameters, multilingual | to be measured | |
+
+`bge-reranker-v2-m3` was measured on the same CPU too: about 45 s for 50 passages and 4.7 GiB of RAM, too slow for a RAG. Its ONNX export and Infinity (another reranking server) ran out of memory, and Infinity also held 12 GiB for the small model. On 11 French questions over the English FIA regulations (F1 app, LAB-145), the small model raises the share of questions whose right article is in the top 5 from 64% (hybrid search alone) to 91%.
+
+**Price.** $1 per 1,000 queries (`input_cost_per_query`), half of Cohere's hosted reranker ([ADR-014](docs/adr/014-internal-price-for-self-hosted-models.md)). Released LiteLLM prices any model of its `huggingface` provider (which TEI uses) at $0, whatever the configuration: the gateway's LiteLLM image fixes it at build time ([`docker/litellm/patch_litellm.py`](docker/litellm/patch_litellm.py)), and `tests/unit/test_litellm_patches.py` fails both when the fix no longer applies and when LiteLLM fixes the bug itself.
+
+**Reranking on a GPU.** Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) (`nvidia-ctk runtime configure --runtime=docker`, then restart Docker), add `COMPOSE_FILE=compose.yaml:compose.gpu.yaml` to `.env`, and run `just gateway-up`. The image tag names the GPU architecture (`89-` for an RTX 40xx).
+
+TEI ignores `top_n`: the answer holds every passage, sorted, and the client keeps the first ones.
 
 ### Swap or add a model
 
@@ -134,7 +160,7 @@ The master key stays with the platform team: it creates teams and keys, and no a
 
 | Team | Tenant | Aliases | Budget | Key limits | PII masking |
 | -- | -- | -- | -- | -- | -- |
-| `f1` | F1 strategy analyst (agent with RAG) | `chat-small`, `chat-large`, `embed` | $10 / 30 days | 60 requests and 100k tokens per minute | Optional |
+| `f1` | F1 strategy analyst (agent with RAG) | `chat-small`, `chat-large`, `embed`, `rerank` | $10 / 30 days | 60 requests and 100k tokens per minute | Optional |
 | `mj` | Game master assistant | `chat-small`, `chat-large` | $5 / 30 days | 30 requests and 50k tokens per minute | Optional |
 | `baux` | Lease compliance checker | `chat-large`, `embed` | $5 / 30 days | 20 requests and 50k tokens per minute | Required |
 | `support` | Customer service assistant | `chat-small`, `chat-large` | $5 / 30 days | 30 requests and 50k tokens per minute | Required |
@@ -154,7 +180,7 @@ A team that steps out of its limits gets an explicit error, and only that team i
 `tests/integration/test_tenants.py` checks all three on a throwaway team, checks that `f1` still answers meanwhile, and checks that re-running the bootstrap left exactly one key per team.
 The budget blocks the call right after the one that crossed it: LiteLLM counts spend in memory at once, and writes it to PostgreSQL in batches, so `/team/info` may show it a few seconds later.
 
-**Why local models have a price.** LiteLLM knows no price for Ollama models, so spend stayed at $0 and budgets never triggered. Each alias carries an internal price per token instead (`chat-small` $0.10 / $0.40 per million tokens in / out, `chat-large` five times more, `embed` $0.02), a chargeback rate that works the same once a paid API joins. See [ADR-014](docs/adr/014-internal-price-for-self-hosted-models.md).
+**Why local models have a price.** LiteLLM knows no price for Ollama models, so spend stayed at $0 and budgets never triggered. Each alias carries an internal price per token instead (`chat-small` $0.10 / $0.40 per million tokens in / out, `chat-large` five times more, `embed` $0.02, `rerank` $1 per 1,000 queries), a chargeback rate that works the same once a paid API joins. See [ADR-014](docs/adr/014-internal-price-for-self-hosted-models.md).
 
 ## Personal data anonymization (Presidio)
 
@@ -383,6 +409,7 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 | `test_langfuse.py` | The UI answers, the Gateway project and its keys exist from the first start, a wrong key is refused, the admin can sign in and nobody can sign up, a span sent over OTLP is read back after going through S3, Redis, the worker and ClickHouse |
 | `test_tracing.py` | A call of each team (each alias) reaches its team's project and no other, with its team, key, alias, tokens, latency and the cost LiteLLM charged; a call without a team reaches Gateway; a failed call is traced as an error; a masked customer message leaves no personal data in its trace; each lead sees their team's project only, as a viewer; a second bootstrap duplicates nothing |
 | `test_no_leak.py` | The 100 annotated texts of the benchmark reach the model with only the 3 words Presidio is known to miss, and leave no personal data in the Langfuse traces or in the logs of LiteLLM and Ollama |
+| `test_rerank.py` | A French question ranks the English passage that answers it first, 50 candidates in one call within 60 s, a team without `rerank` gets a 403, a call costs $0.001 and reaches its team's Langfuse project with that cost |
 | `test_fallback.py` | With `ollama-large` stopped, `chat-large` is served by `chat-small` within 30 s and the logs show the fallback |
 
 [`tests/unit/`](tests/unit/) runs without the stack (`just test-unit`, 235 cases in about 2 s): each recognizer, as configured in `recognizers.yaml`, on at least 10 valid cases and on known false positives and edge cases; the marker fixes of `presidio_markers.py` against the pinned LiteLLM version; and the benchmark dataset (annotations, check digits, same file from the generator). The valid NIRs, tax numbers and IBANs were checked with [python-stdnum](https://arthurdejong.org/python-stdnum/).

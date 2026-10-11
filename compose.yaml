@@ -60,8 +60,39 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # Serves rerank: a cross-encoder that reads (question, passage) pairs and scores them, for the RAG of client apps.
+  # Text Embeddings Inference (TEI) on CPU, with a light multilingual model (118 M parameters, ONNX), so the stack
+  # and its CI run anywhere. compose.gpu.yaml swaps in bge-reranker-v2-m3 on an NVIDIA GPU, the model of the cluster.
+  # The first start downloads the model (470 MB) into the volume.
+  reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.4
+    command:
+      - --model-id=cross-encoder/mmarco-mMiniLMv2-L12-H384-v1
+      - --revision=1427fd652930e4ba29e8149678df786c240d8825
+      # Small batches and two tokenizers: 1.4 GiB of RAM instead of 7 GiB with TEI's defaults, for the same latency.
+      - --max-batch-tokens=2048
+      - --tokenization-workers=2
+      # A RAG reranks 50 candidates in one call.
+      - --max-client-batch-size=64
+    volumes:
+      - reranker-models:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:80/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10m
+    mem_limit: 2g
+    restart: unless-stopped
+
   litellm:
-    image: ghcr.io/berriai/litellm-database:v1.104.2
+    # The official image plus fixes LiteLLM has not released yet: docker/litellm/Dockerfile, the image of the cluster.
+    image: llmops-gateway/litellm:patched
+    build:
+      context: docker/litellm
+      additional_contexts:
+        guardrails: guardrails
+        scripts: scripts
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -190,3 +221,4 @@ services:
 volumes:
   postgres-data:
   ollama-models:
+  reranker-models:
