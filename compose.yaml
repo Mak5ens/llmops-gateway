@@ -176,6 +176,65 @@ services:
     healthcheck: *presidio-healthcheck
     restart: unless-stopped
 
+  # The job queue of llmops-platform, in small: one RabbitMQ node with the same exchanges, queues and retry policy,
+  # imported by rabbitmq-topology from config/rabbitmq/definitions.json. The worker consumes it.
+  rabbitmq:
+    image: rabbitmq:4.3.6-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-jobs}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-local-dev-password}
+    ports:
+      # For the integration tests, which publish jobs from the host.
+      - 127.0.0.1:${RABBITMQ_PORT:-5673}:5672
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  # One-shot job: imports the topology through RabbitMQ's HTTP API. Loading definitions at boot would skip the creation
+  # of the default user.
+  rabbitmq-topology:
+    image: rabbitmq:4.3.6-management-alpine
+    command:
+      - rabbitmqadmin
+      - --non-interactive
+      - --host=rabbitmq
+      - --username=${RABBITMQ_USER:-jobs}
+      - --password=${RABBITMQ_PASSWORD:-local-dev-password}
+      - definitions
+      - import
+      - --file=/definitions.json
+    volumes:
+      - ./config/rabbitmq/definitions.json:/definitions.json:ro
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    restart: "no"
+
+  # Consumes the job queue and calls the gateway with the key of the job's team (worker/README.md).
+  worker:
+    build: worker
+    image: llmops-gateway/worker:dev
+    environment:
+      AMQP_URL: amqp://${RABBITMQ_USER:-jobs}:${RABBITMQ_PASSWORD:-local-dev-password}@rabbitmq:5672/
+      GATEWAY_URL: http://litellm:4000
+      # Jobs may ask to be simulated (no model call), for tests.
+      WORKER_ALLOW_SIMULATION: "true"
+      TEAM_KEY_F1: ${TEAM_KEY_F1:?set in .env}
+      TEAM_KEY_MJ: ${TEAM_KEY_MJ:?set in .env}
+      TEAM_KEY_BAUX: ${TEAM_KEY_BAUX:?set in .env}
+      TEAM_KEY_SUPPORT: ${TEAM_KEY_SUPPORT:?set in .env}
+    # A stopped worker finishes the jobs it holds first.
+    stop_grace_period: 2m
+    depends_on:
+      rabbitmq-topology:
+        condition: service_completed_successfully
+      litellm:
+        condition: service_healthy
+    restart: unless-stopped
+
   # One-shot job: creates or updates the client teams and their keys from config/tenants.yaml, then exits.
   # Reuses the LiteLLM image, which already has Python and PyYAML.
   # Run by `just gateway-up` and `just tenants` with `docker compose run`. The profile keeps it out of

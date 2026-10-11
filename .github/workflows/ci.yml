@@ -46,6 +46,7 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
       - run: just test-unit
+      - run: just test-worker
 
   gateway-integration:
     # Starts the whole stack on a clean runner, then runs the pytest suite: every alias, access per team,

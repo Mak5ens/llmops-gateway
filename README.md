@@ -396,6 +396,11 @@ The `langfuse` block of each team in [`config/tenants.yaml`](config/tenants.yaml
 
 Why an organization per team, and why the bootstrap writes to Langfuse's database: Langfuse's project roles and its admin API for organizations, projects and keys are Enterprise features. The bootstrap writes the same rows as Langfuse's own `LANGFUSE_INIT_*` variables. See [ADR-016](docs/adr/016-langfuse-project-per-team.md).
 
+## Job worker
+
+Long jobs go through a queue rather than a synchronous call: [`worker/`](worker/) consumes the job queue of llmops-platform (RabbitMQ), calls the gateway with the key of the job's team, and replies to the queue named in the job's `reply_to`. A failed job goes back to RabbitMQ, which retries it with a growing delay and sets it aside in a dead letter queue after its third failure; a job the gateway refuses for good (key, alias, budget) is set aside at once. On SIGTERM, the worker finishes the jobs it holds before exiting, so scaling it down loses nothing.
+The compose stack runs it with a RabbitMQ that has the platform's topology. On the cluster, KEDA scales it from zero. Details in [`worker/README.md`](worker/README.md).
+
 ## Tests
 
 Every promise of the gateway is an integration test in [`tests/integration/`](tests/integration/): pytest calls the real stack with the OpenAI SDK and a team key, as a client team would.

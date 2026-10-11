@@ -77,3 +77,18 @@ jobs:
         scripts=scripts
       version: ${{ needs.release.outputs.version }}
       push: ${{ github.event_name == 'push' }}
+
+  # The job worker, which llmops-platform runs next to the job queue and scales with KEDA.
+  worker:
+    needs: release
+    if: ${{ !failure() && !cancelled() }}
+    uses: Mak5ens/llmops-platform/.github/workflows/build-image.yml@ae1a9844545c350c966a18eb058638471fa90efe
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    with:
+      image: ghcr.io/mak5ens/llmops-gateway/worker
+      context: worker
+      version: ${{ needs.release.outputs.version }}
+      push: ${{ github.event_name == 'push' }}

@@ -1,0 +1,31 @@
+# The job worker: consumes the job queue of llmops-platform (RabbitMQ), calls the gateway with the team's key, and
+# replies with the answer. Its own project, so its image only carries what it needs.
+
+[project]
+name = "llmops-worker"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+    "aio-pika>=10.1",
+    "openai>=3.29",
+    "opentelemetry-sdk>=1.45",
+    "opentelemetry-exporter-otlp-proto-http>=1.45",
+]
+
+[project.scripts]
+llmops-worker = "llmops_worker.__main__:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9",
+    "pytest-asyncio>=1.4",
+]
+
+[build-system]
+requires = ["uv_build>=0.11,<0.12"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "-v -ra"
