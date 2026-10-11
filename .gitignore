@@ -139,6 +139,8 @@ celerybeat.pid
 # RabbitMQ
 mnesia/
 rabbitmq/
+# The job queue topology of the compose stack, not a RabbitMQ data directory.
+!config/rabbitmq/
 rabbitmq-data/
 
 # ActiveMQ

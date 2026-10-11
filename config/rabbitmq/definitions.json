@@ -1,0 +1,20 @@
+{
+  "vhosts": [{"name": "/"}],
+  "exchanges": [
+    {"name": "jobs", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}},
+    {"name": "jobs.dead-letter", "vhost": "/", "type": "direct", "durable": true, "auto_delete": false, "internal": false, "arguments": {}}
+  ],
+  "queues": [
+    {"name": "jobs.inference", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-queue-type": "quorum"}},
+    {"name": "jobs.inference.dead", "vhost": "/", "durable": true, "auto_delete": false, "arguments": {"x-queue-type": "quorum"}}
+  ],
+  "bindings": [
+    {"source": "jobs", "vhost": "/", "destination": "jobs.inference", "destination_type": "queue", "routing_key": "inference", "arguments": {}},
+    {"source": "jobs.dead-letter", "vhost": "/", "destination": "jobs.inference.dead", "destination_type": "queue", "routing_key": "inference", "arguments": {}}
+  ],
+  "policies": [
+    {"vhost": "/", "name": "jobs-retry", "pattern": "^jobs\\.inference$", "apply-to": "quorum_queues", "priority": 0,
+     "definition": {"delivery-limit": 2, "delayed-retry-type": "failed", "delayed-retry-min": 5000, "delayed-retry-max": 30000,
+                    "dead-letter-exchange": "jobs.dead-letter", "dead-letter-strategy": "at-least-once", "overflow": "reject-publish"}}
+  ]
+}
