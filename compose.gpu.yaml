@@ -6,7 +6,7 @@ services:
     # The tag names the GPU architecture: 89 for Ada (RTX 40xx), 86 for Ampere (RTX 30xx, A10), plain version for
     # Hopper. See https://huggingface.co/docs/text-embeddings-inference/supported_models.
     image: ghcr.io/huggingface/text-embeddings-inference:89-1.9.4
-    command: !override
+    command:
       - --model-id=BAAI/bge-reranker-v2-m3
       - --revision=953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e
       - --max-client-batch-size=64
