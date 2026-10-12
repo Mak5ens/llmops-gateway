@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/Mak5ens/llmops-gateway/compare/v0.2.1...v0.3.0) (2026-10-12)
+
+
+### Features
+
+* serve a rerank alias with Text Embeddings Inference, priced per query (LAB-184) ([#47](https://github.com/Mak5ens/llmops-gateway/issues/47)) ([fcf5c54](https://github.com/Mak5ens/llmops-gateway/commit/fcf5c54c463043840918c3ab7d2c60600ad2a45d))
+* **worker:** job worker that runs queued jobs through the gateway (LAB-135) ([#49](https://github.com/Mak5ens/llmops-gateway/issues/49)) ([b205096](https://github.com/Mak5ens/llmops-gateway/commit/b20509636a940d8e22db6b07ce82b1c0394b16df))
+
 ## [0.2.1](https://github.com/Mak5ens/llmops-gateway/compare/v0.2.0...v0.2.1) (2026-10-10)
 
 
