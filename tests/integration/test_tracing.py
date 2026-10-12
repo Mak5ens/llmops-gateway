@@ -31,8 +31,8 @@ from test_pii_guardrail import DEMO, user
 # Every alias of config/litellm.yaml has a price in each Langfuse project (scripts/bootstrap_langfuse.py).
 ALIASES = sorted(m["model_name"] for m in yaml.safe_load((ROOT / "config" / "litellm.yaml").read_text())["model_list"])
 
-# (team, alias it calls): the three aliases, one per team.
-CALLS = [("f1", "chat-small"), ("mj", "chat-large"), ("baux", "embed")]
+# (team, alias it calls): each alias, by a team allowed to call it. Mock answers: chat-pro costs nothing at Scaleway.
+CALLS = [("f1", "chat-small"), ("mj", "chat-large"), ("baux", "embed"), ("f1", "chat-medium"), ("f1", "chat-pro")]
 
 
 def call(client: OpenAI, alias: str, name: str, text: str = "Bonjour", **extra):

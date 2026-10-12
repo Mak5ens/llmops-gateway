@@ -1,5 +1,6 @@
-# NVIDIA GPU for the reranker: bge-reranker-v2-m3 (568 M parameters, the model of the cluster) instead of the light
-# CPU model of compose.yaml. Needs the NVIDIA Container Toolkit (README, "Reranking on a GPU").
+# NVIDIA GPU for the reranker, bge-reranker-v2-m3 (568 M parameters, the model of the cluster) instead of the light
+# CPU model of compose.yaml, and for chat-medium (qwen2.5:7b). Needs the NVIDIA Container Toolkit (README, "GPU").
+# Both fit in 12 GB of VRAM: about 1.3 GB for the reranker, 5.5 GB for qwen2.5:7b with its context.
 # Enable it with COMPOSE_FILE=compose.yaml:compose.gpu.yaml in .env: every `just` recipe and the tests then use it.
 services:
   reranker:
@@ -14,6 +15,15 @@ services:
       - --tokenization-workers=4
     # On the GPU, RAM only holds the server; the model (2.2 GB of weights, fp16 on the GPU) lives in VRAM.
     mem_limit: 4g
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  ollama-medium:
     deploy:
       resources:
         reservations:

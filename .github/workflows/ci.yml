@@ -54,6 +54,11 @@ jobs:
     runs-on: ubuntu-latest
     # Acceptance criterion of LAB-112: the job stays under 10 minutes.
     timeout-minutes: 10
+    env:
+      # chat-pro calls Scaleway for real in two tests (a few hundredths of a cent). Without the secret, on a fork's
+      # PR for instance, LiteLLM still starts and those tests are skipped.
+      SCW_SECRET_KEY: ${{ secrets.SCW_SECRET_KEY }}
+      SCW_GENERATIVE_APIS_BASE_URL: ${{ vars.SCW_GENERATIVE_APIS_BASE_URL || 'https://api.scaleway.ai/v1' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
@@ -73,6 +78,9 @@ jobs:
     # A job of its own, in parallel: its 100 real model calls would bring gateway-integration close to its limit.
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    env:
+      # The replay only calls chat-small: no need to download qwen2.5:7b (4.7 GB) for chat-medium.
+      OLLAMA_MODELS: qwen2.5:0.5b qwen2.5:1.5b granite-embedding:278m
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0

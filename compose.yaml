@@ -47,6 +47,34 @@ services:
     healthcheck: *ollama-healthcheck
     restart: unless-stopped
 
+  # Serves chat-medium (qwen2.5:7b), the local model able to follow a JSON schema and write French for the agent of
+  # client apps. On CPU it works but is slow (a few tokens per second); compose.gpu.yaml puts it on an NVIDIA GPU.
+  # The model leaves memory one minute after its last call: on CPU it holds 5 GB of RAM.
+  ollama-medium:
+    image: ollama/ollama:0.34.4
+    environment:
+      OLLAMA_KEEP_ALIVE: 1m
+    volumes:
+      - ollama-models:/root/.ollama
+    healthcheck: *ollama-healthcheck
+    restart: unless-stopped
+
+  # LiteLLM's shared state: the spend of the providers with a budget (router_settings in config/litellm.yaml), which
+  # would start again from zero at every restart if it stayed in LiteLLM's memory.
+  litellm-redis:
+    image: redis:7.4.11-alpine
+    command: ["--requirepass", "${LITELLM_REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes:
+      - litellm-redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    environment:
+      REDIS_PASSWORD: ${LITELLM_REDIS_PASSWORD:?set in .env}
+    restart: unless-stopped
+
   # One-shot job: downloads every model on first start, then exits. Later starts only check the manifests.
   # Both Ollama instances share the model volume, so pulling through one is enough.
   ollama-pull:
@@ -109,6 +137,13 @@ services:
       LANGFUSE_SECRET_KEY_MJ: ${LANGFUSE_SECRET_KEY_MJ:?set in .env}
       LANGFUSE_SECRET_KEY_BAUX: ${LANGFUSE_SECRET_KEY_BAUX:?set in .env}
       LANGFUSE_SECRET_KEY_SUPPORT: ${LANGFUSE_SECRET_KEY_SUPPORT:?set in .env}
+      REDIS_HOST: litellm-redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${LITELLM_REDIS_PASSWORD:?set in .env}
+      # chat-pro: Scaleway Generative APIs (Paris). The URL holds the Scaleway project; the key is a secret, empty in
+      # .env.example: without it, chat-pro answers 401 and the other aliases work as usual.
+      SCW_GENERATIVE_APIS_BASE_URL: ${SCW_GENERATIVE_APIS_BASE_URL:-https://api.scaleway.ai/v1}
+      SCW_SECRET_KEY: ${SCW_SECRET_KEY:-}
     volumes:
       - ./config/litellm.yaml:/app/config.yaml:ro
       # Custom guardrail classes are loaded from the directory of the config file.
@@ -124,6 +159,8 @@ services:
       presidio-analyzer:
         condition: service_healthy
       presidio-anonymizer:
+        condition: service_healthy
+      litellm-redis:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4000/health/liveliness')"]
@@ -279,5 +316,6 @@ services:
 
 volumes:
   postgres-data:
+  litellm-redis-data:
   ollama-models:
   reranker-models:
