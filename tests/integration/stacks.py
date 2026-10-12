@@ -29,6 +29,11 @@ class ComposeStack:
         self.presidio_analyzer_url = f"http://localhost:{os.environ.get('PRESIDIO_ANALYZER_PORT', '5002')}"
         self.presidio_anonymizer_url = f"http://localhost:{os.environ.get('PRESIDIO_ANONYMIZER_PORT', '5001')}"
 
+    def amqp_url(self) -> str:
+        """The job queue's RabbitMQ, with the defaults of compose.yaml."""
+        user, password = os.environ.get("RABBITMQ_USER", "jobs"), os.environ.get("RABBITMQ_PASSWORD", "local-dev-password")
+        return f"amqp://{user}:{password}@localhost:{os.environ.get('RABBITMQ_PORT', '5673')}/"
+
     def compose(self, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(["docker", "compose", *args], cwd=ROOT, check=True, capture_output=True, text=True)
 
@@ -94,11 +99,12 @@ class KubernetesStack:
         secret = json.loads(self.kubectl("get", "secret", "gateway-env", "-o", "json", namespace=True))
         return {name: base64.b64decode(value).decode() for name, value in secret["data"].items()}
 
-    def port_forward(self, target: str, port: int) -> str:
+    def port_forward(self, target: str, port: int, namespace: str | None = None) -> str:
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", 0))
             local = probe.getsockname()[1]
-        command = ["kubectl", "--context", self.context, "-n", self.namespace, "port-forward", target, f"{local}:{port}"]
+        command = ["kubectl", "--context", self.context, "-n", namespace or self.namespace, "port-forward", target,
+                   f"{local}:{port}"]
         self._forwards.append(subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         deadline = time.monotonic() + 30
         while socket.socket().connect_ex(("127.0.0.1", local)) != 0:
@@ -106,6 +112,13 @@ class KubernetesStack:
                 raise RuntimeError(f"port-forward to {target} did not open")
             time.sleep(0.2)
         return f"http://localhost:{local}"
+
+    def amqp_url(self) -> str:
+        """The job queue of the platform (namespace jobs), through a port-forward, with its default user."""
+        secret = json.loads(self.kubectl("-n", "jobs", "get", "secret", "rabbitmq-default-user", "-o", "json"))
+        user, password = (base64.b64decode(secret["data"][key]).decode() for key in ("username", "password"))
+        url = self.port_forward("svc/rabbitmq", 5672, namespace="jobs")
+        return url.replace("http://", f"amqp://{user}:{password}@") + "/"
 
     def start(self) -> None:
         """ArgoCD deploys the stack: wait until every workload is ready."""

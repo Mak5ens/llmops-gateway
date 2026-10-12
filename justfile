@@ -62,6 +62,10 @@ test-cluster *args:
 test-unit *args:
     uv run pytest tests/unit "$@"
 
+# Run the unit tests of the job worker (worker/): no stack, about a second
+test-worker *args:
+    cd worker && uv run pytest "$@"
+
 # Benchmark the anonymization (Presidio against local LLMs, latency of the guardrail) into benchmarks/results.md.
 # Downloads qwen2.5:7b (4.7 GB) on first run and takes about 30 minutes on CPU; `--skip-llm` takes 10 seconds.
 gateway-bench *args: gateway-up

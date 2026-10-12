@@ -15,6 +15,8 @@ dev = [
     # Same version as the LiteLLM image, whose Presidio guardrail guardrails/presidio_markers.py extends.
     "litellm==1.104.2",
     "openai>=2",
+    # Publishes jobs to the job queue in tests/integration/test_worker.py.
+    "pika>=1.3",
     # Same version as the Analyzer image, so the unit tests run the recognizers on the code they run on in the stack.
     "presidio-analyzer==2.2.362",
     "phonenumbers==9.0.41",
