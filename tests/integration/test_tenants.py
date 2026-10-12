@@ -3,6 +3,8 @@
 Limits and budgets are tested on a throwaway team (`temp_team`), so the real teams keep their spend.
 """
 
+import os
+
 import openai
 import pytest
 from helpers import ask, run_bootstrap
@@ -61,7 +63,9 @@ def test_budget_blocks_the_team_and_not_other_teams(admin, temp_team, new_key, t
     ask(team_client("f1"), "chat-small")
 
 
+@pytest.mark.skipif(not os.environ.get("SCW_SECRET_KEY"), reason="SCW_SECRET_KEY is not set")
 def test_the_scaleway_budget_left_is_a_metric(admin, team_client):
+    # Without a key, LiteLLM cannot build the Scaleway client, even for a mock answer.
     # What Prometheus scrapes to alert before chat-pro hits its monthly cap (router_settings in config/litellm.yaml).
     # The gauge is refreshed when a call is routed: a mock answer is enough, and costs nothing at Scaleway.
     team_client("f1").chat.completions.create(

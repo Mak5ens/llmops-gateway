@@ -164,7 +164,7 @@ Both take JSON mode (`response_format={"type": "json_object"}`) with the schema 
 
 **Data.** The `pii-fr` guardrail runs before the call, as for every alias: personal data is masked before a prompt leaves for Scaleway.
 
-**Set up.** In the [Scaleway console](https://console.scaleway.com/generative-api/models), create an API key with the `GenerativeApisModelAccess` permission, and put its secret key in `SCW_SECRET_KEY` and the project's endpoint (`https://api.scaleway.ai/<project id>/v1`) in `SCW_GENERATIVE_APIS_BASE_URL`, in `.env`. Without a key, the stack starts as usual, `chat-pro` answers 401, and its tests are skipped. In the CI, the key is the repository secret `SCW_SECRET_KEY` and the endpoint the variable `SCW_GENERATIVE_APIS_BASE_URL`.
+**Set up.** In the [Scaleway console](https://console.scaleway.com/generative-api/models), create an API key with the `GenerativeApisModelAccess` permission, and put its secret key in `SCW_SECRET_KEY` and the project's endpoint (`https://api.scaleway.ai/<project id>/v1`) in `SCW_GENERATIVE_APIS_BASE_URL`, in `.env`. Without a key, the stack starts as usual, `chat-pro` calls fail with a 500 (LiteLLM cannot build the Scaleway client), and its tests are skipped. In the CI, the key is the repository secret `SCW_SECRET_KEY` and the endpoint the variable `SCW_GENERATIVE_APIS_BASE_URL`.
 
 ### Swap or add a model
 

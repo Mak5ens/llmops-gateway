@@ -141,7 +141,7 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${LITELLM_REDIS_PASSWORD:?set in .env}
       # chat-pro: Scaleway Generative APIs (Paris). The URL holds the Scaleway project; the key is a secret, empty in
-      # .env.example: without it, chat-pro answers 401 and the other aliases work as usual.
+      # .env.example: without it, chat-pro calls fail and the other aliases work as usual.
       SCW_GENERATIVE_APIS_BASE_URL: ${SCW_GENERATIVE_APIS_BASE_URL:-https://api.scaleway.ai/v1}
       SCW_SECRET_KEY: ${SCW_SECRET_KEY:-}
     volumes:
