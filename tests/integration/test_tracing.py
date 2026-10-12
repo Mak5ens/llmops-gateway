@@ -12,6 +12,7 @@ import uuid
 import httpx
 import openai
 import pytest
+import yaml
 from helpers import (
     LANGFUSE_ADMIN,
     LANGFUSE_LEADS,
@@ -24,7 +25,11 @@ from helpers import (
     run_bootstrap,
 )
 from openai import OpenAI
+from stacks import ROOT
 from test_pii_guardrail import DEMO, user
+
+# Every alias of config/litellm.yaml has a price in each Langfuse project (scripts/bootstrap_langfuse.py).
+ALIASES = sorted(m["model_name"] for m in yaml.safe_load((ROOT / "config" / "litellm.yaml").read_text())["model_list"])
 
 # (team, alias it calls): the three aliases, one per team.
 CALLS = [("f1", "chat-small"), ("mj", "chat-large"), ("baux", "embed")]
@@ -140,9 +145,11 @@ def test_the_platform_admin_owns_every_project():
 def test_a_second_bootstrap_duplicates_nothing():
     run_bootstrap()
     for project, keys in LANGFUSE_PROJECT_KEYS.items():
+        # About 190 models with Langfuse's own: ours can be on any page.
+        models, page, pages = [], 1, 1
         with httpx.Client(base_url=LANGFUSE_URL, auth=keys, timeout=30) as client:
-            models = client.get("/api/public/models", params={"limit": 100}).json()["data"]
-        assert sorted(m["modelName"] for m in models if not m["isLangfuseManaged"]) == [
-            "chat-large", "chat-small", "embed"
-        ], project
+            while page <= pages:
+                answer = client.get("/api/public/models", params={"limit": 100, "page": page}).json()
+                models, page, pages = models + answer["data"], page + 1, answer["meta"]["totalPages"]
+        assert sorted(m["modelName"] for m in models if not m["isLangfuseManaged"]) == ALIASES, project
     assert langfuse_session(*LANGFUSE_LEADS["baux"])["user"]["email"] == LANGFUSE_LEADS["baux"][0]
