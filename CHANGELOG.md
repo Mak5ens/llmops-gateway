@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/Mak5ens/llmops-gateway/compare/v0.3.0...v0.3.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* **tests:** read every page of Langfuse models and expect every alias (LAB-135) ([#51](https://github.com/Mak5ens/llmops-gateway/issues/51)) ([a8fa37b](https://github.com/Mak5ens/llmops-gateway/commit/a8fa37b6e344a984aa86f6b310c6d7d4745dd4e1))
+
 ## [0.3.0](https://github.com/Mak5ens/llmops-gateway/compare/v0.2.1...v0.3.0) (2026-10-12)
 
 
