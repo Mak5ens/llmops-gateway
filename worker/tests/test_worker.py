@@ -1,9 +1,13 @@
 """The consumer's decisions on fake AMQP messages: ack after the reply, reject with or without requeue."""
 
+import asyncio
 import json
 from dataclasses import dataclass, field
 
+import httpx2
+import openai
 import pytest
+from llmops_worker import worker as worker_module
 from llmops_worker.worker import Settings, Worker, team_keys
 
 
@@ -16,9 +20,13 @@ class FakeMessage:
     message_id: str | None = None
     acked: bool = False
     rejected: bool | None = None  # requeue flag once rejected
+    nacked: bool | None = None  # requeue flag once nacked
 
     async def ack(self):
         self.acked = True
+
+    async def nack(self, requeue: bool = True):
+        self.nacked = requeue
 
     async def reject(self, requeue: bool = False):
         self.rejected = requeue
@@ -80,6 +88,35 @@ async def test_job_of_a_team_without_key_is_dead_lettered(worker):
     msg = message({"team": "f1", "alias": "chat-small", "messages": [{"role": "user", "content": "x"}]})
     await worker.handle(msg)
     assert msg.rejected is False
+
+
+async def test_rate_limited_job_is_given_back_without_spending_an_attempt(worker, monkeypatch):
+    class Completions:
+        async def create(self, **kwargs):
+            response = httpx2.Response(429, headers={"retry-after": "60"},
+                                       request=httpx2.Request("POST", "http://gateway/v1/chat/completions"))
+            raise openai.RateLimitError("Rate limit exceeded", response=response, body=None)
+
+    worker.clients["f1"] = type("Client", (), {"chat": type("Chat", (), {"completions": Completions()})()})()
+    monkeypatch.setattr(worker_module, "backoff_seconds", lambda error: 0.01)
+    msg = message({"team": "f1", "alias": "chat-pro", "messages": [{"role": "user", "content": "x"}]})
+    await worker.handle(msg)
+    # nack, not reject: RabbitMQ 4 counts only rejects towards the delivery limit.
+    assert msg.nacked is True and msg.rejected is None and not msg.acked
+
+
+async def test_a_stopping_worker_gives_a_rate_limited_job_back_at_once(worker, monkeypatch):
+    class Completions:
+        async def create(self, **kwargs):
+            response = httpx2.Response(429, request=httpx2.Request("POST", "http://gateway/v1/chat/completions"))
+            raise openai.RateLimitError("Rate limit exceeded", response=response, body=None)
+
+    worker.clients["f1"] = type("Client", (), {"chat": type("Chat", (), {"completions": Completions()})()})()
+    monkeypatch.setattr(worker_module, "backoff_seconds", lambda error: 3600)
+    worker.stopping.set()
+    msg = message({"team": "f1", "alias": "chat-pro", "messages": [{"role": "user", "content": "x"}]})
+    await asyncio.wait_for(worker.handle(msg), timeout=5)
+    assert msg.nacked is True
 
 
 def test_team_keys_come_from_the_environment(monkeypatch):

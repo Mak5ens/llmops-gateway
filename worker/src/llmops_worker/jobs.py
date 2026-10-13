@@ -14,6 +14,7 @@ import asyncio
 import random
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from enum import Enum
 
 import openai
@@ -39,6 +40,9 @@ class Outcome(Enum):
     RETRY = "retry"
     # Rejected without requeue: dead-lettered at once.
     DEAD = "dead"
+    # Given back with basic.nack once the rate limit has reset: a 429 is back-pressure, not a failure. RabbitMQ 4 does
+    # not count a nack towards the delivery limit, so the job keeps its attempts however long the limit holds it.
+    BACKOFF = "backoff"
 
 
 @dataclass
@@ -121,8 +125,32 @@ def outcome(error: BaseException) -> Outcome:
     """Whether a failed job is worth another attempt."""
     if isinstance(error, InvalidJob):
         return Outcome.DEAD
+    # The team's rate limit at the gateway (or the provider's, passed on as 429): wait for it, do not spend an attempt.
+    if isinstance(error, openai.APIStatusError) and error.status_code == 429:
+        return Outcome.BACKOFF
     # A refused key, an alias the team may not use, a budget spent, a bad request: the same job fails again.
     # 408 and 429 are transient, as are 5xx (a model server down, a timeout) and connection errors.
     if isinstance(error, openai.APIStatusError) and error.status_code < 500 and error.status_code not in (408, 429):
         return Outcome.DEAD
     return Outcome.RETRY
+
+
+# A worker holds a rate-limited job at most this long before giving it back: one window of LiteLLM's limiter.
+MAX_BACKOFF = 60.0
+
+
+def backoff_seconds(error: openai.APIStatusError, rng: random.Random | None = None, now: datetime | None = None) -> float:
+    """How long to hold a job the gateway refused with a 429: until the limit resets, as LiteLLM tells it in its
+    reset_at header (2026-10-13 20:40:53 UTC), else its retry-after, plus up to 2 s so the workers do not all come back
+    in the same second."""
+    rng = rng or random.Random()
+    headers = error.response.headers
+    try:
+        reset = datetime.strptime(headers["reset_at"], "%Y-%m-%d %H:%M:%S UTC").replace(tzinfo=UTC)
+        wait = (reset - (now or datetime.now(UTC))).total_seconds()
+    except (KeyError, ValueError):
+        try:
+            wait = float(headers.get("retry-after", 10))
+        except ValueError:
+            wait = 10.0
+    return min(max(wait, 1.0), MAX_BACKOFF) + rng.uniform(0, 2)

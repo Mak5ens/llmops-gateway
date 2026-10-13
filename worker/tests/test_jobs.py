@@ -1,15 +1,18 @@
 import random
+from datetime import UTC, datetime
 
 import httpx2
 import openai
 import pytest
 from llmops_worker.jobs import (
     END_USER,
+    MAX_BACKOFF,
     MAX_TOKENS,
     InvalidJob,
     Job,
     Outcome,
     SimulatedFailure,
+    backoff_seconds,
     outcome,
     run,
 )
@@ -67,8 +70,9 @@ async def test_a_team_without_key_is_invalid():
         await run(Job.parse(CHAT, allow_simulation=False), client=None)
 
 
-def status_error(code: int) -> openai.APIStatusError:
-    response = httpx2.Response(code, request=httpx2.Request("POST", "http://gateway/v1/chat/completions"))
+def status_error(code: int, headers: dict | None = None) -> openai.APIStatusError:
+    response = httpx2.Response(code, headers=headers,
+                               request=httpx2.Request("POST", "http://gateway/v1/chat/completions"))
     return openai.APIStatusError("error", response=response, body=None)
 
 
@@ -80,7 +84,7 @@ def status_error(code: int) -> openai.APIStatusError:
         (status_error(401), Outcome.DEAD),  # refused key
         (status_error(403), Outcome.DEAD),  # alias not allowed for the team
         (status_error(408), Outcome.RETRY),
-        (status_error(429), Outcome.RETRY),  # rate limit
+        (status_error(429), Outcome.BACKOFF),  # rate limit: wait, without spending an attempt
         (status_error(500), Outcome.RETRY),
         (status_error(503), Outcome.RETRY),
         (openai.APIConnectionError(request=httpx2.Request("POST", "http://gateway")), Outcome.RETRY),
@@ -108,3 +112,25 @@ async def test_calls_the_gateway_as_the_worker_end_user():
 
     assert result["content"] == "Bonjour"
     assert calls[0]["user"] == END_USER == "llmops-worker"
+
+
+NOW = datetime(2026, 10, 13, 20, 40, 23, tzinfo=UTC)
+
+
+class NoJitter(random.Random):
+    def uniform(self, a, b):
+        return 0.0
+
+
+@pytest.mark.parametrize(
+    ("headers", "expected"),
+    [
+        ({"reset_at": "2026-10-13 20:40:53 UTC", "retry-after": "60"}, 30.0),  # until LiteLLM's limit resets
+        ({"reset_at": "2026-10-13 20:40:00 UTC"}, 1.0),  # already reset: a second, not a negative wait
+        ({"retry-after": "12"}, 12.0),
+        ({"retry-after": "3600"}, MAX_BACKOFF),
+        ({}, 10.0),
+    ],
+)
+def test_backoff_waits_for_the_rate_limit_to_reset(headers, expected):
+    assert backoff_seconds(status_error(429, headers), rng=NoJitter(), now=NOW) == expected

@@ -18,7 +18,7 @@ import openai
 from aio_pika.abc import AbstractIncomingMessage
 
 from . import tracing
-from .jobs import InvalidJob, Job, Outcome, outcome, run
+from .jobs import InvalidJob, Job, Outcome, backoff_seconds, outcome, run
 
 log = logging.getLogger("llmops_worker")
 
@@ -62,6 +62,8 @@ class Worker:
         }
         self.in_flight: set[asyncio.Task] = set()
         self.channel: aio_pika.abc.AbstractChannel | None = None
+        # Set on SIGTERM: a job held for a rate limit is given back at once rather than delaying the stop.
+        self.stopping = asyncio.Event()
 
     async def handle(self, message: AbstractIncomingMessage) -> None:
         task = asyncio.current_task()
@@ -91,9 +93,18 @@ class Worker:
                     )
                 await message.ack()
                 log.info("job %s done in %.2f s (attempt %d)", job.id, result["seconds"], attempt)
-            except Exception as error:  # noqa: BLE001 - every failure ends in a reject, with or without requeue
+            except Exception as error:  # noqa: BLE001 - every failure ends in a reject or, for a 429, a nack
                 decision = outcome(error)
                 tracing.record_failure(span, error, decision.value)
+                if decision is Outcome.BACKOFF:
+                    wait = backoff_seconds(error)
+                    try:
+                        await asyncio.wait_for(self.stopping.wait(), timeout=wait)
+                    except TimeoutError:
+                        pass
+                    await message.nack(requeue=True)
+                    log.info("job rate-limited on attempt %d, given back after %.0f s: %s", attempt, wait, error)
+                    return
                 # basic.reject, not basic.nack: since RabbitMQ 4.0, only a reject counts towards the delivery limit.
                 await message.reject(requeue=decision is Outcome.RETRY)
                 log.warning("job failed on attempt %d (%s): %s: %s", attempt, decision.value, type(error).__name__,
@@ -106,7 +117,7 @@ class Worker:
         connection.close_callbacks.add(lambda *_: lost.set())
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, stop.set)
+            loop.add_signal_handler(sig, lambda: (stop.set(), self.stopping.set()))
 
         self.channel = await connection.channel()
         await self.channel.set_qos(prefetch_count=self.settings.concurrency)
