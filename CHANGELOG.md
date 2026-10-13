@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/Mak5ens/llmops-gateway/compare/v0.4.1...v0.5.0) (2026-10-13)
+
+
+### Features
+
+* **worker:** call the gateway as end user llmops-worker, so jobs have their own spend metric (LAB-138) ([#56](https://github.com/Mak5ens/llmops-gateway/issues/56)) ([4f84841](https://github.com/Mak5ens/llmops-gateway/commit/4f848415fd111dd49464c5a43a4a7bc083bd98c1))
+
 ## [0.4.1](https://github.com/Mak5ens/llmops-gateway/compare/v0.4.0...v0.4.1) (2026-10-13)
 
 
