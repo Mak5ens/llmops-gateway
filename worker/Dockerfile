@@ -2,7 +2,7 @@
 # image only has Python, the virtual environment and the code, and runs as a non-root user.
 FROM ghcr.io/astral-sh/uv:0.13.0 AS uv
 
-FROM python:3.13-slim AS build
+FROM python:3.15-slim AS build
 COPY --from=uv /uv /usr/local/bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
@@ -12,7 +12,7 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY src ./src
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.13-slim
+FROM python:3.15-slim
 COPY --from=build /app/.venv /app/.venv
 ENV PATH=/app/.venv/bin:$PATH PYTHONUNBUFFERED=1
 USER 10001
