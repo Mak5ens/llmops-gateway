@@ -60,8 +60,9 @@ flowchart LR
 | LLM gateway | [LiteLLM Proxy](https://docs.litellm.ai/docs/simple_proxy) |
 | PII anonymization | [Microsoft Presidio](https://microsoft.github.io/presidio/) with French recognizers |
 | Tracing and cost | [Langfuse](https://langfuse.com/) self-hosted (PostgreSQL, ClickHouse, Redis, SeaweedFS for S3) |
-| Local models | [Ollama](https://ollama.com/) with a small open-source model; vLLM takes over on the cluster |
-| Gateway database | PostgreSQL |
+| Local models | [Ollama](https://ollama.com/) with small open-source models; vLLM takes over on the cluster |
+| Commercial model | [Scaleway Generative APIs](https://www.scaleway.com/en/generative-apis/) (Paris), capped per month |
+| Gateway database | PostgreSQL; Redis for the spend counted against provider caps |
 
 ## Quick start
 
@@ -70,8 +71,8 @@ Requires Docker with Compose v2, [just](https://just.systems/), and [uv](https:/
 | Machine | Needed | Measured |
 | -- | -- | -- |
 | RAM given to Docker | 12 GB, 16 GB with the benchmark | 7.5 to 8.4 GiB at peak during `just test` over two runs, of which 2.6 GiB for Langfuse |
-| Disk | 10 GB, 15 GB with the benchmark | 6.7 GB of images, 2 GB of models; the benchmark adds `qwen2.5:7b` (4.7 GB) |
-| CPU | No GPU needed | The models run on the CPU; measured on an i7-14700KF (28 threads) |
+| Disk | 15 GB | 6.7 GB of images, 6.7 GB of models, of which 4.7 GB for `qwen2.5:7b` (`chat-medium`, also used by the benchmark) |
+| CPU | No GPU needed | The models run on the CPU; measured on an i7-14700KF (28 threads). `chat-medium` is slow there: an NVIDIA GPU runs it and the reranker (`compose.gpu.yaml`) |
 
 Peak RAM per service, sampled with `docker stats` during the whole test suite: Presidio Analyzer 1.6 GiB (limited to 2 GiB), Langfuse web 1.4 GiB, the two Ollama servers 1.1 to 2.1 GiB each with their models loaded, Langfuse worker 0.8 GiB, LiteLLM 0.7 GiB, ClickHouse 0.4 GiB, the rest under 0.15 GiB each. On Windows, WSL 2 gives Docker half of the machine's RAM by default.
 
@@ -105,6 +106,8 @@ Teams call **usage aliases**, never model names. The platform decides which mode
 | -- | -- | -- | -- | -- |
 | `chat-small` | Short answers, classification, extraction | `qwen2.5:0.5b` | `ollama` | 30 s |
 | `chat-large` | Better answers, slower | `qwen2.5:1.5b` | `ollama-large` | 20 s, then fallback to `chat-small` |
+| `chat-medium` | Agents and RAG: follows a JSON schema, writes French | `qwen2.5:7b` | `ollama-medium`, on the GPU with `compose.gpu.yaml` | 60 s |
+| `chat-pro` | Commercial model, for evaluation runs and demos | Mistral Small 3.2 (24 B) | [Scaleway Generative APIs](https://www.scaleway.com/en/generative-apis/), Paris | 60 s, monthly cap |
 | `embed` | Embeddings, multilingual (French included), 768 dimensions | `granite-embedding:278m` | `ollama` | 30 s |
 | `rerank` | Reranking for RAG (`/rerank`): scores each candidate passage against the question | `mmarco-mMiniLMv2-L12` on CPU, `bge-reranker-v2-m3` on GPU | `reranker` (TEI) | 60 s |
 
@@ -140,9 +143,28 @@ The `reranker` service is [Text Embeddings Inference](https://github.com/hugging
 
 **Price.** $1 per 1,000 queries (`input_cost_per_query`), half of Cohere's hosted reranker ([ADR-014](docs/adr/014-internal-price-for-self-hosted-models.md)). Released LiteLLM prices any model of its `huggingface` provider (which TEI uses) at $0, whatever the configuration: the gateway's LiteLLM image fixes it at build time ([`docker/litellm/patch_litellm.py`](docker/litellm/patch_litellm.py)), and `tests/unit/test_litellm_patches.py` fails both when the fix no longer applies and when LiteLLM fixes the bug itself.
 
-**Reranking on a GPU.** Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) (`nvidia-ctk runtime configure --runtime=docker`, then restart Docker), add `COMPOSE_FILE=compose.yaml:compose.gpu.yaml` to `.env`, and run `just gateway-up`. The image tag names the GPU architecture (`89-` for an RTX 40xx). The first start downloads 2.2 GB of weights: TEI's download breaks now and then on so large a file, the container restarts and resumes it (7 restarts, 6 minutes on the first try here).
+**On a GPU.** Install the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) (`nvidia-ctk runtime configure --runtime=docker`, then restart Docker), add `COMPOSE_FILE=compose.yaml:compose.gpu.yaml` to `.env`, and run `just gateway-up`: the reranker and `chat-medium` then run on the GPU, together 7 GB of VRAM at most. The reranker's image tag names the GPU architecture (`89-` for an RTX 40xx). Its first start downloads 2.2 GB of weights: TEI's download breaks now and then on so large a file, the container restarts and resumes it (7 restarts, 6 minutes on the first try here).
 
 TEI ignores `top_n`: the answer holds every passage, sorted, and the client keeps the first ones.
+
+### Models for agents
+
+`chat-small` and `chat-large` are too small for an agent or a production RAG: asked to rewrite a French question as JSON, `qwen2.5:0.5b` repeated the same array item until the timeout, and `qwen2.5:1.5b` invented article numbers and copied the example of its prompt into its filters. Two aliases follow a JSON schema and write French:
+
+| | `chat-medium` | `chat-pro` |
+| -- | -- | -- |
+| Model | `qwen2.5:7b`, local | Mistral Small 3.2 24B, Scaleway Generative APIs (Paris) |
+| For | Development, every day, at no real cost | Evaluation runs and demos |
+| JSON rewrite of a question, measured | 1.2 s on an RTX 4070 SUPER (34 s for the first call, which loads the model); a few tokens per second on CPU | 1.7 s |
+| Price | Internal: $1 / $4 per million tokens in / out | Scaleway's: €0.15 / €0.35 per million tokens, counted as dollars |
+
+Both take JSON mode (`response_format={"type": "json_object"}`) with the schema in the prompt, checked by `test_routing.py`. A strict JSON schema is supported by both, but on the small aliases it loops.
+
+**Spending cap.** LiteLLM caps what the gateway spends at Scaleway: **$5 per 30 days**, all teams together (`provider_budget_config` in `config/litellm.yaml`). Over it, `chat-pro` is refused and the local aliases go on; it has no fallback, since a caller that asked for the commercial model must know it did not get it. The spend counted against the cap lives in a Redis of its own (`litellm-redis`), so a restart of LiteLLM does not reset it. What is left is the Prometheus gauge `litellm_provider_remaining_budget_metric{api_provider="scaleway"}` on `/metrics` (master key), for the cluster's Prometheus to alert on before the cap. A cap per team and per model (`model_max_budget`) is a LiteLLM Enterprise feature; until another team needs `chat-pro`, the provider cap is the f1 team's, and the f1 team's own budget still applies on top. `tests/unit/test_provider_budget.py` checks on the pinned LiteLLM that the cap blocks `chat-pro` and nothing else.
+
+**Data.** The `pii-fr` guardrail runs before the call, as for every alias: personal data is masked before a prompt leaves for Scaleway.
+
+**Set up.** In the [Scaleway console](https://console.scaleway.com/generative-api/models), create an API key with the `GenerativeApisModelAccess` permission, and put its secret key in `SCW_SECRET_KEY` and the project's endpoint (`https://api.scaleway.ai/<project id>/v1`) in `SCW_GENERATIVE_APIS_BASE_URL`, in `.env`. Without a key, the stack starts as usual, `chat-pro` calls fail with a 500 (LiteLLM cannot build the Scaleway client), and its tests are skipped. In the CI, the key is the repository secret `SCW_SECRET_KEY` and the endpoint the variable `SCW_GENERATIVE_APIS_BASE_URL`.
 
 ### Swap or add a model
 
@@ -160,7 +182,7 @@ The master key stays with the platform team: it creates teams and keys, and no a
 
 | Team | Tenant | Aliases | Budget | Key limits | PII masking |
 | -- | -- | -- | -- | -- | -- |
-| `f1` | F1 strategy analyst (agent with RAG) | `chat-small`, `chat-large`, `embed`, `rerank` | $10 / 30 days | 60 requests and 100k tokens per minute | Optional |
+| `f1` | F1 strategy analyst (agent with RAG) | `chat-small`, `chat-medium`, `chat-large`, `chat-pro`, `embed`, `rerank` | $10 / 30 days | 60 requests and 100k tokens per minute | Optional |
 | `mj` | Game master assistant | `chat-small`, `chat-large` | $5 / 30 days | 30 requests and 50k tokens per minute | Optional |
 | `baux` | Lease compliance checker | `chat-large`, `embed` | $5 / 30 days | 20 requests and 50k tokens per minute | Required |
 | `support` | Customer service assistant | `chat-small`, `chat-large` | $5 / 30 days | 30 requests and 50k tokens per minute | Required |
@@ -180,7 +202,7 @@ A team that steps out of its limits gets an explicit error, and only that team i
 `tests/integration/test_tenants.py` checks all three on a throwaway team, checks that `f1` still answers meanwhile, and checks that re-running the bootstrap left exactly one key per team.
 The budget blocks the call right after the one that crossed it: LiteLLM counts spend in memory at once, and writes it to PostgreSQL in batches, so `/team/info` may show it a few seconds later.
 
-**Why local models have a price.** LiteLLM knows no price for Ollama models, so spend stayed at $0 and budgets never triggered. Each alias carries an internal price per token instead (`chat-small` $0.10 / $0.40 per million tokens in / out, `chat-large` five times more, `embed` $0.02, `rerank` $1 per 1,000 queries), a chargeback rate that works the same once a paid API joins. See [ADR-014](docs/adr/014-internal-price-for-self-hosted-models.md).
+**Why local models have a price.** LiteLLM knows no price for Ollama models, so spend stayed at $0 and budgets never triggered. Each alias carries an internal price per token instead (`chat-small` $0.10 / $0.40 per million tokens in / out, `chat-large` five times more, `chat-medium` ten times more, `embed` $0.02, `rerank` $1 per 1,000 queries), a chargeback rate that works the same once a paid API joins. See [ADR-014](docs/adr/014-internal-price-for-self-hosted-models.md).
 
 ## Personal data anonymization (Presidio)
 
@@ -407,8 +429,8 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 
 | File | Checks |
 | -- | -- |
-| `test_routing.py` | Each alias answers, served by its own model (header `x-litellm-model-group`); `embed` returns 768 dimensions |
-| `test_tenants.py` | Allowed and refused aliases per team (403), rate limit (429), budget (422), isolation from other teams, idempotent bootstrap |
+| `test_routing.py` | Each alias answers, served by its own model (header `x-litellm-model-group`); `chat-medium` and `chat-pro` return JSON valid against a schema; `embed` returns 768 dimensions |
+| `test_tenants.py` | Allowed and refused aliases per team (403), rate limit (429), budget (422), isolation from other teams, the Scaleway budget left as a Prometheus metric, idempotent bootstrap |
 | `test_pii_guardrail.py` | The prompt reaches the model with markers only, the answer (streamed or not) comes back with the real values, two people in two messages get two markers, `f1` is not masked unless it asks, `support` cannot opt out from the request |
 | `test_presidio.py` | The Analyzer finds every French identifier in a lease, context words raise the scores, no identifier comes out of ordinary numbers (amounts, dates, lap numbers), English still works; the Anonymizer replaces what was found |
 | `test_langfuse.py` | The UI answers, the Gateway project and its keys exist from the first start, a wrong key is refused, the admin can sign in and nobody can sign up, a span sent over OTLP is read back after going through S3, Redis, the worker and ClickHouse |
@@ -417,7 +439,7 @@ Every promise of the gateway is an integration test in [`tests/integration/`](te
 | `test_rerank.py` | A French question ranks the English passage that answers it first, 50 candidates in one call within 60 s, a team without `rerank` gets a 403, a call costs $0.001 and reaches its team's Langfuse project with that cost |
 | `test_fallback.py` | With `ollama-large` stopped, `chat-large` is served by `chat-small` within 30 s and the logs show the fallback |
 
-[`tests/unit/`](tests/unit/) runs without the stack (`just test-unit`, 235 cases in about 2 s): each recognizer, as configured in `recognizers.yaml`, on at least 10 valid cases and on known false positives and edge cases; the marker fixes of `presidio_markers.py` against the pinned LiteLLM version; and the benchmark dataset (annotations, check digits, same file from the generator). The valid NIRs, tax numbers and IBANs were checked with [python-stdnum](https://arthurdejong.org/python-stdnum/).
+[`tests/unit/`](tests/unit/) runs without the stack (`just test-unit`, 274 cases in about 12 s): each recognizer, as configured in `recognizers.yaml`, on at least 10 valid cases and on known false positives and edge cases; the marker fixes of `presidio_markers.py`, the image's fixes of LiteLLM and the Scaleway spending cap against the pinned LiteLLM version; and the benchmark dataset (annotations, check digits, same file from the generator). The valid NIRs, tax numbers and IBANs were checked with [python-stdnum](https://arthurdejong.org/python-stdnum/).
 
 `just test` runs both suites, starts the stack if it is not running, and passes its arguments to pytest: `just test -k budget`, `just test tests/integration/test_fallback.py`.
 The fallback test stops a container, and the leak test restarts LiteLLM at `DEBUG`: both always run last, and put the stack back afterwards, even on failure.

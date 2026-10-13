@@ -39,3 +39,14 @@ The price is a chargeback rate, not a bill: it tells a team what its usage would
 
 The `rerank` alias (LAB-184) is priced per query, as hosted rerankers are, not per token: **$1 per 1,000 queries**, half of Cohere's hosted reranker, since a query reranks up to 64 passages on a self-hosted model.
 LiteLLM 1.104.2 prices every model of its `huggingface` provider, which TEI uses, at $0 whatever the configuration; the gateway's image fixes it at build time (`docker/litellm/patch_litellm.py`) until LiteLLM does.
+
+## Addendum (2026-10-12): agent models
+
+Two aliases for agents and production RAG (LAB-185):
+
+- `chat-medium` (`qwen2.5:7b`, local) gets an internal price of **$1 / $4 per million tokens** in / out, twice `chat-large`, keeping the rule that a bigger local model costs more per token.
+- `chat-pro` (Mistral Small 3.2 on Scaleway Generative APIs) carries **Scaleway's public price**, €0.15 / €0.35 per million tokens, counted as dollars: the euro is worth a little more, so the spend shown is within 10% of the bill.
+
+The commercial price is lower than the internal price of the local 7B model. That is not a mistake: the internal prices are a chargeback convention, set before any measurement of GPU cost, and a shared hosted model is cheaper per token than a dev GPU running one model. They are to be revisited with the unit cost measured on the platform (LAB-138), as planned under option C.
+
+A paid alias needs a spending cap of its own, not just the team's budget: LiteLLM caps the provider (`provider_budget_config`, $5 per 30 days at Scaleway), since caps per team and per model are Enterprise features.
