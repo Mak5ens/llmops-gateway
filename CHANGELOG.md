@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/Mak5ens/llmops-gateway/compare/v0.3.1...v0.4.0) (2026-10-13)
+
+
+### Features
+
+* add chat-medium and chat-pro aliases for agents, with a Scaleway spending cap (LAB-185) ([#50](https://github.com/Mak5ens/llmops-gateway/issues/50)) ([19f5ce0](https://github.com/Mak5ens/llmops-gateway/commit/19f5ce02dc97b2091b0414241d06a91d9a427bbf))
+
 ## [0.3.1](https://github.com/Mak5ens/llmops-gateway/compare/v0.3.0...v0.3.1) (2026-10-12)
 
 
