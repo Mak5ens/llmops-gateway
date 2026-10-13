@@ -4,6 +4,7 @@ Limits and budgets are tested on a throwaway team (`temp_team`), so the real tea
 """
 
 import os
+import time
 
 import openai
 import pytest
@@ -84,12 +85,18 @@ def test_the_jobs_spend_is_a_metric_of_its_own(admin, mock_client):
         model="chat-small", messages=[{"role": "user", "content": "Bonjour"}], user="llmops-worker",
         extra_body={"mock_response": "Bonjour !"},
     )
-    metrics = admin.get("/metrics/").text
 
-    assert any(
-        line.startswith("litellm_requests_metric_total{") and 'end_user="llmops-worker"' in line
-        for line in metrics.splitlines()
-    )
+    def counted() -> bool:
+        return any(
+            line.startswith("litellm_requests_metric_total{") and 'end_user="llmops-worker"' in line
+            for line in admin.get("/metrics/").text.splitlines()
+        )
+
+    # LiteLLM counts the call in a callback that runs after the answer: give it a few seconds.
+    deadline = time.monotonic() + 15
+    while not counted():
+        assert time.monotonic() < deadline, "no litellm_requests_metric_total with end_user llmops-worker after 15 s"
+        time.sleep(0.5)
 
 
 def test_bootstrap_is_idempotent(admin):
