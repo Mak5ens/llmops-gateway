@@ -86,6 +86,10 @@ class Job:
         return cls(team=team, alias=alias, messages=messages, max_tokens=max_tokens, id=job_id)
 
 
+# The end user of every call the worker makes (see run()).
+END_USER = "llmops-worker"
+
+
 async def run(job: Job, client: openai.AsyncOpenAI | None, rng: random.Random | None = None) -> dict:
     """Run a job and return its result. Raises on failure; outcome() tells what to do with the exception."""
     rng = rng or random.Random()
@@ -97,8 +101,10 @@ async def run(job: Job, client: openai.AsyncOpenAI | None, rng: random.Random | 
         return {"id": job.id, "status": "done", "simulated": True, "seconds": round(time.monotonic() - start, 3)}
     if client is None:
         raise InvalidJob(f"no gateway key for team {job.team}")
+    # user= is the end user of LiteLLM's metrics (label end_user): the cluster's Prometheus tells the spend of jobs
+    # from the spend of the team's own calls, made with the same key, and divides it by the jobs answered.
     response = await client.chat.completions.create(
-        model=job.alias, messages=job.messages, max_tokens=job.max_tokens,
+        model=job.alias, messages=job.messages, max_tokens=job.max_tokens, user=END_USER,
         extra_body={"metadata": {"job_id": job.id, "source": "llmops-worker"}},
     )
     return {

@@ -4,6 +4,7 @@ import httpx2
 import openai
 import pytest
 from llmops_worker.jobs import (
+    END_USER,
     MAX_TOKENS,
     InvalidJob,
     Job,
@@ -89,3 +90,21 @@ def status_error(code: int) -> openai.APIStatusError:
 )
 def test_outcome(error, expected):
     assert outcome(error) is expected
+
+
+async def test_calls_the_gateway_as_the_worker_end_user():
+    calls = []
+
+    class Completions:
+        async def create(self, **kwargs):
+            calls.append(kwargs)
+            return openai.types.chat.ChatCompletion.model_validate({
+                "id": "c1", "object": "chat.completion", "created": 0, "model": "chat-small",
+                "choices": [{"index": 0, "finish_reason": "stop", "message": {"role": "assistant", "content": "Bonjour"}}],
+            })
+
+    client = type("Client", (), {"chat": type("Chat", (), {"completions": Completions()})()})()
+    result = await run(Job.parse(CHAT, allow_simulation=False), client)
+
+    assert result["content"] == "Bonjour"
+    assert calls[0]["user"] == END_USER == "llmops-worker"

@@ -78,6 +78,20 @@ def test_the_scaleway_budget_left_is_a_metric(admin, team_client):
     assert 0 < float(line.split()[-1]) <= 5
 
 
+def test_the_jobs_spend_is_a_metric_of_its_own(admin, mock_client):
+    # The worker calls the gateway as user llmops-worker: Prometheus tells the spend of jobs from the team's own calls.
+    mock_client("f1").chat.completions.create(
+        model="chat-small", messages=[{"role": "user", "content": "Bonjour"}], user="llmops-worker",
+        extra_body={"mock_response": "Bonjour !"},
+    )
+    metrics = admin.get("/metrics/").text
+
+    assert any(
+        line.startswith("litellm_requests_metric_total{") and 'end_user="llmops-worker"' in line
+        for line in metrics.splitlines()
+    )
+
+
 def test_bootstrap_is_idempotent(admin):
     # The session already ran the bootstrap once: a second run updates, and creates nothing.
     output = run_bootstrap()
