@@ -25,6 +25,8 @@ A job is a JSON message published to the exchange `jobs` with the routing key `i
 {"id": "season-2025-r01", "status": "done", "alias": "chat-large", "content": "...", "usage": {"prompt_tokens": 812, "completion_tokens": 240, "total_tokens": 1052}, "seconds": 3.42}
 ```
 
+The worker calls the gateway with `user: llmops-worker`: in LiteLLM's Prometheus metrics (label `end_user`), the spend of jobs stands apart from the team's own calls with the same key.
+
 For load tests, a job can ask to be simulated instead of calling a model: `{"team": "f1", "simulate": {"seconds": 2, "error_rate": 0.1}}`. It waits about that long (±25 %), then fails with that probability. Simulation is refused unless the worker runs with `WORKER_ALLOW_SIMULATION=true`.
 
 ## Failures
