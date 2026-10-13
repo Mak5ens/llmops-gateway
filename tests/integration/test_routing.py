@@ -9,8 +9,19 @@ from pydantic import BaseModel
 
 # chat-pro calls Scaleway with the gateway's key: without one (a fork's CI, a fresh clone), its tests are skipped.
 needs_scaleway = pytest.mark.skipif(not os.environ.get("SCW_SECRET_KEY"), reason="SCW_SECRET_KEY is not set")
+# Aliases a stack serves with a smaller model under the expected name, to fit its machine: llmops-platform's cluster
+# runs on a 16 GB CI runner and lists them in its gateway-env Secret. They must answer, but no quality test applies.
+STAND_IN_ALIASES = set(os.environ.get("STAND_IN_ALIASES", "").split(",")) - {""}
+
+
+def real_model(alias: str):
+    return pytest.param(
+        alias, marks=pytest.mark.skipif(alias in STAND_IN_ALIASES, reason=f"this stack serves {alias} with a stand-in")
+    )
+
+
 CHAT_ALIASES = ["chat-small", "chat-medium", "chat-large", pytest.param("chat-pro", marks=needs_scaleway)]
-AGENT_ALIASES = ["chat-medium", pytest.param("chat-pro", marks=needs_scaleway)]
+AGENT_ALIASES = [real_model("chat-medium"), pytest.param("chat-pro", marks=needs_scaleway)]
 
 
 class Rewrite(BaseModel):

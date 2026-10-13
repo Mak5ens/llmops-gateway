@@ -454,6 +454,7 @@ The same suite runs against the gateway deployed by [`llmops-platform`](https://
 - settings come from the cluster's `gateway-env` Secret, with the variable names of `.env`;
 - LiteLLM and Langfuse are reached through the cluster's Gateway, on `https://llm.localtest.me` and `https://langfuse.localtest.me`, trusting its local certificate authority; Presidio, which has no route, through a port-forward;
 - the bootstrap runs again as a copy of the `tenants-bootstrap` Job;
+- an alias the cluster serves with a smaller model under the expected name, listed in `STAND_IN_ALIASES` of `gateway-env`, must answer, but its quality test (`chat-medium`'s JSON) is skipped: the cluster's CI runner has 16 GB;
 - to stop `ollama-large` or restart LiteLLM at `DEBUG`, the tests suspend ArgoCD's reconciliation of the `llm-gateway` Application, then let ArgoCD put everything back as in Git.
 
 The CI builds the two images the platform deploys with llmops-platform's shared workflow ([ADR-022](https://github.com/Mak5ens/llmops-platform/blob/main/docs/adr/022-supply-chain.md)): `ghcr.io/mak5ens/llmops-gateway/presidio-analyzer` (with its configuration of `config/presidio/`) and `ghcr.io/mak5ens/llmops-gateway/litellm` (the official image plus the guardrail class and the bootstrap scripts). A critical CVE with a fix fails the build; from `main`, each image is published as `sha-<commit>`, with an SBOM, and signed keyless:
