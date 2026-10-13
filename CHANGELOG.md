@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/Mak5ens/llmops-gateway/compare/v0.4.0...v0.4.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **tests:** skip the quality test of an alias a stack serves with a stand-in model (LAB-137) ([#54](https://github.com/Mak5ens/llmops-gateway/issues/54)) ([d7cf661](https://github.com/Mak5ens/llmops-gateway/commit/d7cf661c47b02cc69974e8d845f2a620768617cc))
+
 ## [0.4.0](https://github.com/Mak5ens/llmops-gateway/compare/v0.3.1...v0.4.0) (2026-10-13)
 
 
