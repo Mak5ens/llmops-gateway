@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.0...v0.5.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **worker:** wait for the rate limit to reset on a 429 instead of spending the job's attempts (LAB-194) ([#58](https://github.com/Mak5ens/llmops-gateway/issues/58)) ([fa7baea](https://github.com/Mak5ens/llmops-gateway/commit/fa7baea859fc0810ff1a4c5421ed3d790da608f9))
+
 ## [0.5.0](https://github.com/Mak5ens/llmops-gateway/compare/v0.4.1...v0.5.0) (2026-10-13)
 
 
