@@ -36,11 +36,13 @@ The worker never retries by itself: it gives the job back to RabbitMQ, whose pol
 | What happened | What the worker does | Then |
 | -- | -- | -- |
 | Done | acknowledges, after sending the reply | |
-| Gateway error 5xx, 408 or 429, timeout, connection error, simulated failure | rejects with requeue | retried, dead-lettered after the third failure |
+| Gateway error 429: the team's rate limit, or the provider's | holds the job until the limit resets (its `reset_at`, 60 s at most), then gives it back with `basic.nack` | taken again at once, its attempts untouched |
+| Gateway error 5xx or 408, timeout, connection error, simulated failure | rejects with requeue | retried, dead-lettered after the third failure |
 | Gateway error 4xx otherwise (refused key, alias not allowed, budget spent, bad request), invalid job | rejects without requeue | dead-lettered at once |
 | The worker dies holding the job | nothing: the connection closes | RabbitMQ counts a failure and redelivers it |
 
 A job is failed with `basic.reject`, never `basic.nack`: since RabbitMQ 4.0, only a reject counts towards the delivery limit, and a nacked job would come back forever.
+That is what a rate-limited job needs: a 429 is back-pressure, not a failure, so the worker nacks it after waiting. Rejected, it would come back 5 s and 10 s later, inside the same minute of the limit, and be dead-lettered after three 429s: 182 jobs of 302 were, in a peak of `chat-pro` jobs over the `f1` team's 60 requests a minute (LAB-194). While it holds a job, a worker takes no other, so the workers slow down to the limit. On SIGTERM, a held job is given back at once.
 
 On SIGTERM (a pod scaled down, a rollout), the worker stops taking jobs, finishes the ones it holds, acknowledges them and exits. The grace period of its pod must exceed the longest job.
 
