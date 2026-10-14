@@ -36,6 +36,16 @@
       "groupName": "Text Embeddings Inference"
     },
     {
+      "description": "Langfuse: web and worker on the same version. The web container runs the database migrations, a worker ahead of it queries tables that do not exist yet",
+      "matchPackageNames": ["docker.langfuse.com/langfuse/**"],
+      "groupName": "Langfuse"
+    },
+    {
+      "description": "Python: no version yet that PyO3 does not support. pydantic-core is built from source on it and PyO3 stops at 3.14; raise the cap when a pydantic-core release supports 3.15",
+      "matchPackageNames": ["python", "actions/python-versions"],
+      "allowedVersions": "<3.15"
+    },
+    {
       "description": "The Python package is published before Microsoft's image: it follows the image's tags (custom manager below), not PyPI",
       "matchDatasources": ["pypi"],
       "matchPackageNames": ["presidio-analyzer"],
