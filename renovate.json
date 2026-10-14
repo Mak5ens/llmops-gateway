@@ -4,6 +4,8 @@
   "extends": ["config:recommended", "helpers:pinGitHubActionDigests", ":semanticCommits"],
   "labels": ["dependencies"],
   "prConcurrentLimit": 5,
+  "timezone": "Europe/Paris",
+  "schedule": ["before 6am on monday"],
   "dependencyDashboard": true,
   "pre-commit": {
     "enabled": true
@@ -19,6 +21,11 @@
     }
   ],
   "packageRules": [
+    {
+      "description": "One PR a week for the minor and patch updates, pins and digests. The groups below override it: their parts move and are tested together. Majors keep a PR each",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest", "pinDigest"],
+      "groupName": "weekly updates"
+    },
     {
       "description": "LiteLLM: image and Python package on the same version (the guardrail class extends its code, ADR-015)",
       "matchPackageNames": ["ghcr.io/berriai/litellm-database", "litellm"],
