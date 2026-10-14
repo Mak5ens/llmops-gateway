@@ -1,6 +1,6 @@
 # The job worker (worker/README.md). Dependencies come from uv.lock, installed with uv in a first stage; the final
 # image only has Python, the virtual environment and the code, and runs as a non-root user.
-FROM ghcr.io/astral-sh/uv:0.13.0 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.1 AS uv
 
 FROM python:3.13-slim AS build
 COPY --from=uv /uv /usr/local/bin/uv
