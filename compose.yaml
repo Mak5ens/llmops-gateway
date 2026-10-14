@@ -62,7 +62,7 @@ services:
   # LiteLLM's shared state: the spend of the providers with a budget (router_settings in config/litellm.yaml), which
   # would start again from zero at every restart if it stayed in LiteLLM's memory.
   litellm-redis:
-    image: redis:7.4.11-alpine
+    image: redis:8.10.2-alpine
     command: ["--requirepass", "${LITELLM_REDIS_PASSWORD}", "--appendonly", "yes"]
     volumes:
       - litellm-redis-data:/data
