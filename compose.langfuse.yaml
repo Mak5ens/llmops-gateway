@@ -1,7 +1,7 @@
 # Self-hosted Langfuse: traces, costs and latency of every call through the gateway.
 # Included by compose.yaml, so `just gateway-up` starts it with the rest of the stack.
 #
-# Based on the official file of Langfuse v4.47.0 (github.com/langfuse/langfuse, docker-compose.yml), with:
+# Based on the official file of Langfuse v4.59.0 (github.com/langfuse/langfuse, docker-compose.yml), with:
 # - versions pinned instead of `langfuse:4`, `redis:7` and `postgres:17`;
 # - SeaweedFS instead of MinIO for S3 storage (see "Tracing with Langfuse" in the README);
 # - its own PostgreSQL rather than the gateway's (same section);
@@ -29,6 +29,9 @@ services:
         SALT: ${LANGFUSE_SALT:?set in .env}
         ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:?set in .env}
         TELEMETRY_ENABLED: "false"
+        # API keys checked without roles, Langfuse's default up to 4.59 at least. scripts/bootstrap_langfuse.py writes
+        # the teams' keys without a role assignment, which "enforce" would refuse: a new default must not reach us.
+        API_AUTH_MIGRATION: legacy
         CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
         CLICKHOUSE_URL: http://langfuse-clickhouse:8123
         CLICKHOUSE_USER: clickhouse

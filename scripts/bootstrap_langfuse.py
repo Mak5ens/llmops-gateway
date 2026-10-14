@@ -4,9 +4,13 @@ Called by bootstrap_tenants.py for every team of config/tenants.yaml that has a 
 Why an organization per team, and why rows written into Langfuse's database: docs/adr/016-langfuse-project-per-team.md.
 
 - The organization, the project, its API keys and the account are written to Langfuse's PostgreSQL, as Langfuse
-  itself does for its LANGFUSE_INIT_* variables (web/src/initialize.ts, v4.47.0): its API for them is Enterprise.
-  Hashes are computed the same way: bcrypt for the secret key and the password, SHA-256 salted with SALT for the
-  fast lookup of the secret key.
+  itself does for its LANGFUSE_INIT_* variables (web/src/initialize.ts, checked up to v4.59.0): its API for them is
+  Enterprise. Hashes are computed the same way: SHA-256 salted with SALT for the lookup of the secret key, bcrypt for
+  the password. Langfuse no longer stores a bcrypt of new secret keys; one still works, so the script keeps
+  writing it.
+- Since 4.55, Langfuse also gives each API key a role (role_assignments table). The script does not: the keys work
+  because compose.langfuse.yaml sets API_AUTH_MIGRATION=legacy, under which roles are not checked. Before moving to
+  "shadow" or "enforce", write the assignment as createApiKey does (packages/shared/src/server/auth/apiKeys.ts).
 - The prices of the aliases go through Langfuse's public API, from the internal prices of config/litellm.yaml, so
   Langfuse computes the same cost as LiteLLM (docs/adr/014-internal-price-for-self-hosted-models.md).
 

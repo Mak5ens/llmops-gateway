@@ -350,7 +350,7 @@ It starts in about 6 seconds once the image is built, and analyzes a 30-word Fre
 
 ## Tracing with Langfuse
 
-[Langfuse](https://langfuse.com/) v4.47.0 runs in the stack, self-hosted: traces say which team called which alias, when and for how much, so they stay on the machine. [`compose.langfuse.yaml`](compose.langfuse.yaml), included by `compose.yaml`, starts from the [official Docker Compose file](https://github.com/langfuse/langfuse/blob/main/docker-compose.yml) with every version pinned, secrets required from `.env`, telemetry to Langfuse turned off, only the UI and the S3 API published, on `127.0.0.1`, and SeaweedFS instead of MinIO for S3 storage.
+[Langfuse](https://langfuse.com/) v4.59.0 runs in the stack, self-hosted: traces say which team called which alias, when and for how much, so they stay on the machine. [`compose.langfuse.yaml`](compose.langfuse.yaml), included by `compose.yaml`, starts from the [official Docker Compose file](https://github.com/langfuse/langfuse/blob/main/docker-compose.yml) with every version pinned, secrets required from `.env`, telemetry to Langfuse turned off, only the UI and the S3 API published, on `127.0.0.1`, and SeaweedFS instead of MinIO for S3 storage.
 
 | Service | Role |
 | -- | -- |
