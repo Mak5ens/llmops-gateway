@@ -71,8 +71,9 @@ services:
     ports:
       - 127.0.0.1:${LANGFUSE_PORT:-3100}:3000
     healthcheck:
-      # Next.js listens on the container's hostname, not on localhost.
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://$$(hostname):3000/api/public/health"]
+      # Next.js listens on the container's hostname, not on localhost. $HOSTNAME
+      # rather than the hostname command, which the images lack since 4.58.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://$${HOSTNAME}:3000/api/public/health"]
       interval: 5s
       timeout: 5s
       retries: 24
@@ -86,7 +87,7 @@ services:
     depends_on: *langfuse-depends-on
     environment: *langfuse-env
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://$$(hostname):3030/api/health"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://$${HOSTNAME}:3030/api/health"]
       interval: 5s
       timeout: 5s
       retries: 24
