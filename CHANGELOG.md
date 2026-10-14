@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.1...v0.5.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* **langfuse:** healthchecks on $HOSTNAME, the 4.58 images have no hostname command (LAB-197) ([#66](https://github.com/Mak5ens/llmops-gateway/issues/66)) ([bbc349d](https://github.com/Mak5ens/llmops-gateway/commit/bbc349d1bab639b6e3e407f4ee060f300a3c6075))
+
 ## [0.5.1](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.0...v0.5.1) (2026-10-13)
 
 
