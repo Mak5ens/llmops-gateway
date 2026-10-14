@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.4](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.3...v0.5.4) (2026-10-14)
+
+
+### Bug Fixes
+
+* **langfuse:** keep API key checks without roles, and the 4.59.0 follow-up of the bootstrap (LAB-197) ([#75](https://github.com/Mak5ens/llmops-gateway/issues/75)) ([6b9340b](https://github.com/Mak5ens/llmops-gateway/commit/6b9340b2d880d1d088742aeed9f0c5ce7f4bc15b))
+
 ## [0.5.3](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.2...v0.5.3) (2026-10-14)
 
 
