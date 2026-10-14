@@ -1,7 +1,7 @@
 # LiteLLM of the gateway: the official image, plus the pii-fr guardrail class, the tenant bootstrap scripts and fixes
 # to LiteLLM not released yet (patch_litellm.py). Built with the build contexts `guardrails` and `scripts`
 # (see .github/workflows/images.yml and compose.yaml); compose.yaml mounts the config and the guardrail over it.
-FROM ghcr.io/berriai/litellm-database:v1.104.2
+FROM ghcr.io/berriai/litellm-database:v1.105.1
 
 # Fails the build if a fix no longer applies to this LiteLLM version.
 COPY patch_litellm.py /tmp/patch_litellm.py
