@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.3](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.2...v0.5.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* **gateway:** chat-pro keeps tools and tool_choice, unsupported params are refused (LAB-199) ([#73](https://github.com/Mak5ens/llmops-gateway/issues/73)) ([d6fed78](https://github.com/Mak5ens/llmops-gateway/commit/d6fed78c9298425f74ab1bfc9b91834cc1707970))
+
 ## [0.5.2](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.1...v0.5.2) (2026-10-14)
 
 
