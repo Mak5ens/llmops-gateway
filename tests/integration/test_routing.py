@@ -3,6 +3,7 @@
 import json
 import os
 
+import openai
 import pytest
 from helpers import ask
 from pydantic import BaseModel
@@ -66,7 +67,49 @@ def test_agent_alias_returns_json_valid_against_a_schema(team_client, alias):
     assert len(rewrite.variants) == 2
 
 
+RACE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "get_race",
+        "description": "Look up a Formula 1 Grand Prix of a season: its round, date and circuit.",
+        "parameters": {
+            "type": "object",
+            "properties": {"season": {"type": "integer"}, "name": {"type": "string"}},
+            "required": ["season", "name"],
+        },
+    },
+}
+
+
+@pytest.mark.parametrize("alias", AGENT_ALIASES)
+def test_agent_alias_calls_a_tool(team_client, alias):
+    # Native tool calling reaches the model: chat-pro once lost `tools` on the way, and answered from memory (LAB-199).
+    response = team_client("f1").chat.completions.create(
+        model=alias,
+        messages=[{"role": "user", "content": "Quel round était le Grand Prix d'Italie 2025 ?"}],
+        tools=[RACE_TOOL],
+        tool_choice="required",
+        temperature=0,
+        max_tokens=100,
+    )
+
+    call = response.choices[0].message.tool_calls[0]
+    assert call.function.name == "get_race"
+    assert json.loads(call.function.arguments)["season"] == 2025
+
+
+def test_a_parameter_the_model_does_not_take_is_refused(team_client):
+    # Never dropped without a word (drop_params: false): Ollama has no logprobs.
+    with pytest.raises(openai.BadRequestError, match="logprobs"):
+        team_client("f1").chat.completions.create(
+            model="chat-small", messages=[{"role": "user", "content": "Bonjour"}], max_tokens=5, logprobs=True
+        )
+
+
 def test_embed_alias_returns_768_dimensions(team_client):
-    response = team_client("f1").embeddings.create(model="embed", input="Ma commande est arrivée avec trois jours de retard.")
+    # With `user`, as every client sends it: Ollama does not take it, so the gateway drops it for this alias.
+    response = team_client("f1").embeddings.create(
+        model="embed", input="Ma commande est arrivée avec trois jours de retard.", user="f1-rag"
+    )
 
     assert len(response.data[0].embedding) == 768

@@ -54,6 +54,10 @@ model_list:
       # Scaleway's price in euros per token, counted as dollars: within 10% of the bill, on the safe side.
       input_cost_per_token: 0.00000015
       output_cost_per_token: 0.00000035
+    model_info:
+      # LiteLLM's model map does not know this model, so it took it for one without tool calling and removed `tools`
+      # and `tool_choice` from every request (LAB-199). Scaleway serves it with tool calling.
+      supports_function_calling: true
 
   # Multilingual embeddings (French included), 768 dimensions.
   - model_name: embed
@@ -62,6 +66,10 @@ model_list:
       api_base: http://ollama:11434
       timeout: 30
       input_cost_per_token: 0.00000002
+      # The only parameters dropped (see drop_params below), both sent by every client and unknown to Ollama's
+      # embeddings: the OpenAI SDKs ask for base64 vectors by default, and get floats, which they read too; `user`
+      # (f1-rag, llmops-worker) is read by the proxy for spend tracking before the call, so it loses nothing.
+      additional_drop_params: ["encoding_format", "user"]
 
   # Cross-encoder for the RAG of client apps, on LiteLLM's /rerank endpoint: rereads the candidates of a search and
   # scores each against the question. Served by TEI (`reranker` in compose.yaml): a light multilingual model on CPU,
@@ -183,6 +191,8 @@ litellm_settings:
   # values back into the answer before LiteLLM logs it, and an opted-out team can still send personal data.
   # LiteLLM's per-team or per-request switch is ignored by langfuse_otel in 1.83.14, so this one applies to all.
   turn_off_message_logging: true
-  drop_params: true
+  # A parameter the model of an alias does not take is refused (HTTP 400), never dropped: with drop_params, LiteLLM
+  # removed `tools` from chat-pro requests without a word, and the model answered from memory (LAB-199).
+  drop_params: false
   # Upper bound for any call, whatever the per-model timeout.
   request_timeout: 60
