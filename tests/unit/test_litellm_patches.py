@@ -7,6 +7,7 @@ and the patch can go.
 
 import subprocess
 import sys
+import types
 from pathlib import Path
 
 import litellm
@@ -63,3 +64,27 @@ def test_a_tei_rerank_deployment_keeps_its_price() -> None:
 def test_the_bug_is_still_there_upstream() -> None:
     # When this fails, LiteLLM prices TEI deployments on its own: remove the patch.
     assert rerank_cost(patched=False) == 0.0
+
+
+def tei_rerank_body(patched: bool) -> dict:
+    """The body LiteLLM posts to TEI, from the transformation module run in a namespace of its own."""
+    path = PACKAGE / PATCHES[1].file
+    source = path.read_text()
+    if patched:
+        source = apply(source, PATCHES[1])
+    module = types.ModuleType("tei_rerank_transformation")
+    module.__package__ = "litellm.llms.huggingface.rerank"  # for its relative imports
+    exec(compile(source, str(path), "exec"), module.__dict__)
+    config = module.HuggingFaceRerankConfig()
+    return config.transform_rerank_request(
+        model="tei", optional_rerank_params={"query": "q", "texts": ["a"]}, headers={}
+    )
+
+
+def test_a_tei_rerank_request_lets_the_server_truncate() -> None:
+    assert "truncate" not in tei_rerank_body(patched=True)
+
+
+def test_the_truncate_bug_is_still_there_upstream() -> None:
+    # When this fails, LiteLLM no longer forces `truncate: false` on TEI: remove the patch.
+    assert tei_rerank_body(patched=False)["truncate"] is False

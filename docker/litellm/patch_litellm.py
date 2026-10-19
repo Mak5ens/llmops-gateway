@@ -40,6 +40,23 @@ PATCHES = [
         ),
         why="Hugging Face (TEI) rerank deployments are priced at $0 whatever their configured price",
     ),
+    Patch(
+        file="llms/huggingface/rerank/transformation.py",
+        # transform_rerank_request: every request to TEI said `truncate: false`, which overrides the server's
+        # --auto-truncate. A (question, passage) pair longer than the model reads (512 tokens on the CPU reranker)
+        # then failed the whole call with a 422 (LAB-211). With the patch, the server decides.
+        old=(
+            '            "raw_scores": False,\n'
+            '            "truncate": False,\n'
+            '            "truncation_direction": "Right",\n'
+        ),
+        new=(
+            '            "raw_scores": False,\n'
+            "            # llmops-gateway patch (docker/litellm/patch_litellm.py): TEI's --auto-truncate decides.\n"
+            '            "truncation_direction": "Right",\n'
+        ),
+        why="TEI rerank requests refuse a pair longer than the model reads, whatever the server's --auto-truncate",
+    ),
 ]
 
 

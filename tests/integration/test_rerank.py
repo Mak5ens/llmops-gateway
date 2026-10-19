@@ -62,6 +62,19 @@ def test_a_call_is_priced_per_query_and_traced_to_the_team() -> None:
     assert generation["totalCost"] == pytest.approx(PRICE_PER_QUERY)
 
 
+def test_a_passage_longer_than_the_model_reads_is_truncated_not_refused() -> None:
+    # The CPU model reads 512 tokens per (question, passage) pair; a whole article of a regulation is often longer.
+    # A 422 here means LiteLLM sends `truncate: false` again, which overrides TEI's --auto-truncate: the patch of
+    # docker/litellm/patch_litellm.py is missing from the running image.
+    article = " ".join([PASSAGES[ANSWER]] + [PASSAGES[i] for i in range(len(PASSAGES)) if i != ANSWER] * 12)
+    assert len(article.split()) > 700
+    response = rerank("f1", QUESTION, [PASSAGES[0], article, PASSAGES[4]])
+    response.raise_for_status()
+
+    # The start of the passage, which is kept, holds the answer.
+    assert response.json()["results"][0]["index"] == 1
+
+
 def test_fifty_candidates_in_one_call() -> None:
     # A RAG reranks the 50 candidates of its hybrid search at once (compose.yaml: --max-client-batch-size=64).
     candidates = [f"{passage} (variant {i})" for i in range(9) for passage in PASSAGES][:50]
