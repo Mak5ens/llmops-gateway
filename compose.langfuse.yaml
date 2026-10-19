@@ -117,7 +117,7 @@ services:
 
   # Stores traces and observations, and answers the dashboards' queries.
   langfuse-clickhouse:
-    image: clickhouse/clickhouse-server:26.9.18.11
+    image: clickhouse/clickhouse-server:26.9.22.3
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
