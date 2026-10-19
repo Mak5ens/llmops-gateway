@@ -277,7 +277,7 @@ services:
   # Run by `just gateway-up` and `just tenants` with `docker compose run`. The profile keeps it out of
   # `docker compose up --wait`, which fails on any container that exits, even with code 0, when nothing depends on it.
   tenants-bootstrap:
-    image: ghcr.io/berriai/litellm-database:v1.105.1
+    image: ghcr.io/berriai/litellm-database:v1.106.0
     profiles: [bootstrap]
     entrypoint: ["python3", "/scripts/bootstrap_tenants.py"]
     environment:
