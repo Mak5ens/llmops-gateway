@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.5](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.4...v0.5.5) (2026-10-19)
+
+
+### Bug Fixes
+
+* **gateway:** rerank truncates a pair longer than the model reads instead of refusing the call (LAB-211) ([#81](https://github.com/Mak5ens/llmops-gateway/issues/81)) ([1e09740](https://github.com/Mak5ens/llmops-gateway/commit/1e097409507c2a65b7b075ee06bf25a93843d6ad))
+
 ## [0.5.4](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.3...v0.5.4) (2026-10-14)
 
 
