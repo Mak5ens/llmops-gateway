@@ -13,6 +13,8 @@ services:
       - --max-client-batch-size=64
       # TEI starts one tokenizer per CPU thread by default: 27 here, and 3.8 GiB of RAM.
       - --tokenization-workers=4
+      # As in compose.yaml, although this model reads 8,192 tokens per pair.
+      - --auto-truncate
     # On the GPU, RAM only holds the server; the model (2.2 GB of weights, fp16 on the GPU) lives in VRAM.
     mem_limit: 4g
     deploy:
