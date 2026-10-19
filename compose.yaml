@@ -26,7 +26,7 @@ services:
 
   # Serves chat-small and embed. Each Ollama instance stands for one model server, like vLLM pods on the cluster.
   ollama:
-    image: ollama/ollama:0.40.4
+    image: ollama/ollama:0.40.6
     volumes:
       - ollama-models:/root/.ollama
     ports:
@@ -41,7 +41,7 @@ services:
 
   # Serves chat-large. Stopping it simulates an outage of the main model: `tests/integration/test_fallback.py`.
   ollama-large:
-    image: ollama/ollama:0.40.4
+    image: ollama/ollama:0.40.6
     volumes:
       - ollama-models:/root/.ollama
     healthcheck: *ollama-healthcheck
@@ -51,7 +51,7 @@ services:
   # client apps. On CPU it works but is slow (a few tokens per second); compose.gpu.yaml puts it on an NVIDIA GPU.
   # The model leaves memory one minute after its last call: on CPU it holds 5 GB of RAM.
   ollama-medium:
-    image: ollama/ollama:0.40.4
+    image: ollama/ollama:0.40.6
     environment:
       OLLAMA_KEEP_ALIVE: 1m
     volumes:
@@ -78,7 +78,7 @@ services:
   # One-shot job: downloads every model on first start, then exits. Later starts only check the manifests.
   # Both Ollama instances share the model volume, so pulling through one is enough.
   ollama-pull:
-    image: ollama/ollama:0.40.4
+    image: ollama/ollama:0.40.6
     environment:
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODELS_TO_PULL: ${OLLAMA_MODELS:?set in .env}
