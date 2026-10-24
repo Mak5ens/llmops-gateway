@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.6](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.5...v0.5.6) (2026-10-24)
+
+
+### Documentation
+
+* AGENTS.md d'après le gabarit du lore ([c208190](https://github.com/Mak5ens/llmops-gateway/commit/c2081905f8d1a127b03c81499bf31d0aa152a958))
+* MAK-117 PR template, planning in the mak5ens lore ([#86](https://github.com/Mak5ens/llmops-gateway/issues/86)) ([8fde163](https://github.com/Mak5ens/llmops-gateway/commit/8fde1633d0d5ce8fc160f205dce0ce94e687744f))
+
 ## [0.5.5](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.4...v0.5.5) (2026-10-19)
 
 
