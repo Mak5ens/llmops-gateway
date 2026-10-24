@@ -36,7 +36,7 @@ En production · recette validée · MR relue par un autre que l'auteur · fiche
 
 `llmops-gateway` is block 1 of a portfolio "internal AI platform": the single entry point to every LLM. LiteLLM Proxy handles per-team virtual keys, budgets, rate limiting and routing. A Presidio guardrail anonymizes French PII before inference and re-identifies the answer. Self-hosted Langfuse traces every call with its cost per team. Ollama serves models locally; vLLM replaces it once the gateway moves to Kubernetes in the sibling repo `llmops-platform`.
 
-Planning lives in Linear (team key `LAB`, project "Plateforme IA · Gateway d'entreprise"). The cross-cutting vision document is "Portfolio IA — Vision, architecture et conventions".
+Planning lives in the mak5ens lore (MCP `lore`): tasks `MAK-<n>` in `repos/llmops-gateway/todo.md`, milestones in `roadmap/`. Tasks moved over from Linear keep their former id (`LAB-<n>`) in the "Historique Linear" section of `taches/MAK-<n>.md` (`search("LAB-<n>")` finds it). The cross-cutting vision (stack, decisions, conventions) is `domaine/plateforme-ia.md` in the lore.
 
 ## Current state
 
@@ -150,7 +150,7 @@ When changing a recognizer because of the benchmark, also measure on a held-out 
 
 ## Conventions
 
-- Branch names come from Linear issues: `feature/lab-<n>-<slug>`.
+- Branch names come from the task: the branch `start_task` returns (`mak-<n>-<slug>`). Put the task id in the PR title too.
 - Commits follow Conventional Commits, enforced by a commit-msg hook.
-- ADRs specific to this repo go in `docs/adr/`, copied from `000-template.md`. Cross-cutting ADRs live in `llmops-platform/docs/adr/`. ADR numbers are global to the portfolio and planned in Linear (001-006 and 010 cross-cutting, 007 LiteLLM, 008 ArgoCD, 009 KEDA, 012-013 F1, 014 here): take the next free number, never reuse one.
+- ADRs specific to this repo go in `docs/adr/`, copied from `000-template.md`. Cross-cutting ADRs live in `llmops-platform/docs/adr/`. ADR numbers are global to the portfolio (001-006 and 010 cross-cutting, 007 LiteLLM, 008 ArgoCD, 009 KEDA, 012-013 F1, 014 here): take the next free number, never reuse one.
 - Public repo: synthetic or public data only, never employer code or data. Claims come with real numbers (latency, detection rate, cost).
