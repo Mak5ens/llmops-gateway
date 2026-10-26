@@ -12,7 +12,7 @@
 
 services:
   langfuse-web:
-    image: docker.langfuse.com/langfuse/langfuse:4.64.0
+    image: docker.langfuse.com/langfuse/langfuse:4.70.1
     depends_on: &langfuse-depends-on
       langfuse-postgres:
         condition: service_healthy
@@ -86,7 +86,7 @@ services:
 
   # Takes the events queued in Redis and writes them to ClickHouse.
   langfuse-worker:
-    image: docker.langfuse.com/langfuse/langfuse-worker:4.64.0
+    image: docker.langfuse.com/langfuse/langfuse-worker:4.70.1
     depends_on: *langfuse-depends-on
     environment: *langfuse-env
     healthcheck:
