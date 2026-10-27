@@ -2,7 +2,8 @@
 
 Idempotent: a team or key that exists is updated to match the file, never duplicated.
 Nothing is deleted. Runs in the `tenants-bootstrap` service on every `just gateway-up`, with the LiteLLM image,
-which has every library it needs. Then sets up Langfuse for the teams: scripts/bootstrap_langfuse.py.
+which has every library it needs. Then sets up Langfuse for the teams (scripts/bootstrap_langfuse.py), unless
+LANGFUSE_URL is unset: a gateway deployed without Langfuse has no project to set up.
 """
 
 import hashlib
@@ -97,7 +98,10 @@ def main() -> None:
         _, found = call("GET", f"/key/list?key_hash={key_hash}")
         ensure(f"key {key['key_alias']}", found["total_count"] > 0, "/key/generate", "/key/update", key_body)
 
-    bootstrap_langfuse.main(teams)
+    if os.environ.get("LANGFUSE_URL"):
+        bootstrap_langfuse.main(teams)
+    elif any("langfuse" in team for team in teams):
+        sys.exit("a team has a langfuse block: set LANGFUSE_URL, or remove the block to run without Langfuse")
 
 
 if __name__ == "__main__":

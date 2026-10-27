@@ -59,6 +59,7 @@ Client teams (`f1`, `mj`, `baux`, `support`) live in `config/tenants.yaml`: alia
 - The service sits in the `bootstrap` profile and runs with `docker compose run`, because `docker compose up --wait` fails on any container that exits, even with code 0, when no other service depends on it.
 - Key values come from `.env` (`TEAM_KEY_*`) and are set with the `key` field of `/key/generate`, which makes re-runs converge instead of creating new keys. Keys have no model list: they inherit their team's.
 - Existence is checked with `/team/list` and `/key/list?key_hash=<sha256 of the key>`, not `/team/info` or `/key/info`, which log a stack trace for every missing object.
+- Langfuse is optional: without `LANGFUSE_URL`, the script sets up the teams and keys only, and refuses a team with a `langfuse` block. A deployment without Langfuse (LabbTech's gateway) also leaves `langfuse_otel` out of `callbacks` and the teams out of `default_team_settings`.
 - LiteLLM checks the budget before the rate limit, so a test of the rate limit must run on a team without a tight budget. Deleting a team deletes its keys.
 
 Presidio notes:
