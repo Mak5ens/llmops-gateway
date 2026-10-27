@@ -14,7 +14,7 @@ USER root
 RUN apt-get update \
     && apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir "anyio==4.14.2" \
+    && pip install --no-cache-dir "anyio==4.14.2" "certifi==2026.10.23" \
     && pip install --no-deps "fr_core_news_lg @ ${FR_MODEL_URL}#sha256=${FR_MODEL_SHA256}"
 USER 1001
 
