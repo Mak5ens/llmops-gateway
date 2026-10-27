@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.7](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.6...v0.5.7) (2026-10-27)
+
+
+### Bug Fixes
+
+* certifi 2026.10.23 in the images (GHSA-6q48-6c7w-9gw2) ([#90](https://github.com/Mak5ens/llmops-gateway/issues/90)) ([7eb154d](https://github.com/Mak5ens/llmops-gateway/commit/7eb154d4c365d2d3e88ccd3ea672907fec7bfba6))
+
 ## [0.5.6](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.5...v0.5.6) (2026-10-27)
 
 
