@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.8](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.7...v0.5.8) (2026-10-30)
+
+
+### Documentation
+
+* push direct sur main, MR seulement pour les sujets sensibles ([1eee567](https://github.com/Mak5ens/llmops-gateway/commit/1eee56778b4d5f742a0c0b56b6e8f8a1acb4d578))
+
 ## [0.5.7](https://github.com/Mak5ens/llmops-gateway/compare/v0.5.6...v0.5.7) (2026-10-27)
 
 
