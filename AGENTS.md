@@ -15,19 +15,29 @@ Cursor / Codex : même URL, même en-tête, dans leur fichier de configuration d
 ## Avant toute tâche
 1. `read_file("repos/llmops-gateway/llmops-gateway.md")` — rôle, dépendances, sensibilité.
 2. `list_tasks(repo: "llmops-gateway")` — en cours et à faire ; `start_task("<ID>")` sur celle qu'on
-   traite, puis créer la branche renvoyée.
+   traite. On reste sur `main`, sauf sujet sensible (voir Livrer).
 3. Avant de toucher un contrat (message, schéma, endpoint, librairie partagée) :
    `search("<nom>")` et lire les fiches qui le citent.
 
+## Livrer
+Par défaut, **pas de MR** : commit sur `main` (identifiant de la tâche dans le message,
+`<ID>: …`), push, puis `update_task("<ID>", statut: "done")` — sans MR, la tâche n'avance
+pas seule. Regrouper les commits d'une tâche en un seul push : chaque push consomme de la CI.
+
+MR seulement pour un sujet sensible : migration ou suppression de données, authentification,
+droits ou secrets, infra de production (cluster, DNS, réseau, sauvegardes), contrat partagé
+qui casse (API, schéma, message, librairie), gros refactor. Branche renvoyée par `start_task`,
+identifiant dans le titre de la MR : la tâche passe seule en revue puis en fait.
+
 ## Pendant et après
-- Tâches : identifiant dans le titre de la MR (elle passe seule en revue puis en fait) ;
-  tâches de suite avec `create_task`.
-- Dette introduite sciemment : `open_debt`, marqueur `DEBT-xxxx` dans le code, lien dans la MR.
+- Tâches de suite avec `create_task`.
+- Dette introduite sciemment : `open_debt`, marqueur `DEBT-xxxx` dans le code, identifiant
+  dans le message de commit (ou la MR).
 - Décision structurante : `create_adr`.
-- Fiche du repo fausse : la corriger (`edit_file`) dans la même MR.
+- Fiche du repo fausse : la corriger (`edit_file`) dans le même lot.
 
 ## Définition de fini
-En production · recette validée · MR relue par un autre que l'auteur · fiche à jour · dette déclarée.
+En production · recette validée · MR relue si sujet sensible · fiche à jour · dette déclarée.
 <!-- AGENTS-TEMPLATE-END -->
 
 ## Règles propres à ce repo
@@ -151,7 +161,8 @@ When changing a recognizer because of the benchmark, also measure on a held-out 
 
 ## Conventions
 
-- Branch names come from the task: the branch `start_task` returns (`mak-<n>-<slug>`). Put the task id in the PR title too.
+- Push to `main` directly by default, the task id in the commit message. For a sensitive change
+  (see Livrer): the branch `start_task` returns (`mak-<n>-<slug>`) and the task id in the PR title.
 - Commits follow Conventional Commits, enforced by a commit-msg hook.
 - ADRs specific to this repo go in `docs/adr/`, copied from `000-template.md`. Cross-cutting ADRs live in `llmops-platform/docs/adr/`. ADR numbers are global to the portfolio (001-006 and 010 cross-cutting, 007 LiteLLM, 008 ArgoCD, 009 KEDA, 012-013 F1, 014 here): take the next free number, never reuse one.
 - Public repo: synthetic or public data only, never employer code or data. Claims come with real numbers (latency, detection rate, cost).
