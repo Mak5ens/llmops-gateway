@@ -22,7 +22,7 @@ repos:
       - id: yamllint
 
   - repo: https://github.com/DavidAnson/markdownlint-cli2
-    rev: v0.23.3
+    rev: v0.24.2
     hooks:
       - id: markdownlint-cli2
 
@@ -32,7 +32,7 @@ repos:
       - id: gitleaks
 
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.4.0
+    rev: v4.5.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
