@@ -19,11 +19,11 @@ dev = [
     "pika>=1.3",
     # Same version as the Analyzer image, so the unit tests run the recognizers on the code they run on in the stack.
     "presidio-analyzer==2.2.362",
-    "phonenumbers==9.0.41",
+    "phonenumbers==9.0.44",
     "pytest>=8",
     "python-dotenv>=1",
-    "faker==40.43.0",
-    "pyyaml==6.0.3",
+    "faker==40.63.0",
+    "pyyaml==6.0.4",
 ]
 
 [tool.uv]
