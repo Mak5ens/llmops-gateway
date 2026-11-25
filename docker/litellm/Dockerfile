@@ -1,7 +1,7 @@
 # LiteLLM of the gateway: the official image, plus the pii-fr guardrail class, the tenant bootstrap scripts and fixes
 # to LiteLLM not released yet (patch_litellm.py). Built with the build contexts `guardrails` and `scripts`
 # (see .github/workflows/images.yml and compose.yaml); compose.yaml mounts the config and the guardrail over it.
-FROM ghcr.io/berriai/litellm-database:v1.106.4
+FROM ghcr.io/berriai/litellm-database:1.110.4
 
 # certifi of the base image bundles emSign root CAs with compromised intermediate keys (GHSA-6q48-6c7w-9gw2, critical):
 # the supply chain scan refuses it. The image's virtual environment has no pip, hence uv, not kept in the image.
