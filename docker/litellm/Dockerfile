@@ -6,7 +6,7 @@ FROM ghcr.io/berriai/litellm-database:v1.106.4
 # certifi of the base image bundles emSign root CAs with compromised intermediate keys (GHSA-6q48-6c7w-9gw2, critical):
 # the supply chain scan refuses it. The image's virtual environment has no pip, hence uv, not kept in the image.
 # Remove once the base image ships certifi 2026.10.18 or later.
-RUN --mount=from=ghcr.io/astral-sh/uv:0.13.1,source=/uv,target=/bin/uv \
+RUN --mount=from=ghcr.io/astral-sh/uv:0.13.10,source=/uv,target=/bin/uv \
     uv pip install --python /app/.venv/bin/python3 --no-cache "certifi==2026.10.23"
 
 # Fails the build if a fix no longer applies to this LiteLLM version.
